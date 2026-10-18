@@ -4,7 +4,7 @@ open Environment
 
 let type_bin_op op t1 t2 =
   match op, t1, t2 with
-  | (Add | Sub | Mul | Div), TInt, TInt -> TInt
+  | (Add | Sub | Mul | Div | Mod), TInt, TInt -> TInt
   | (And | Or), TBool, TBool -> TBool
   | (Eq | Ne), TInt, TInt -> TBool
   | (Eq | Ne), TBool, TBool -> TBool

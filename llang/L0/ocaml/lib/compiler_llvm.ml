@@ -32,7 +32,11 @@ type llvm =
   | Subi32 of register * result * result 
   | Muli32 of register * result * result 
   | Divi32 of register * result * result 
+  | Modi32 of register * result * result
   | Cmp of register * cmp_op * result * result * i_type
+  | BrI1 of result * label * label
+  | BrLabel of label
+  | PhiI1 of register * (result * label) list
 
 let llvm_type_of = function
   | Ast.TInt -> I32
@@ -49,6 +53,7 @@ let build_op op ret r1 r2 t =
   | Ast.Sub, I32 -> Subi32 (ret,r1,r2)
   | Ast.Mul, I32 -> Muli32 (ret,r1,r2)
   | Ast.Div, I32 -> Divi32 (ret,r1,r2) 
+  | Ast.Mod, I32 -> Modi32 (ret,r1,r2)
   | Ast.Eq, _ -> Cmp (ret,Eq,r1,r2,t)
   | Ast.Ne, _ -> Cmp (ret,Ne,r1,r2,t)
   | Ast.Lt, _ -> Cmp (ret,Lt,r1,r2,t)
@@ -56,6 +61,9 @@ let build_op op ret r1 r2 t =
   | Ast.Gt, _ -> Cmp (ret,Gt,r1,r2,t)
   | Ast.Ge, _ -> Cmp (ret,Ge,r1,r2,t)
   | _ -> failwith "Unsupported binary operator in LLVM compilation"
+
+let label_count = ref 0
+let new_label = fun() -> label_count := !label_count + 1; !label_count
 
 let rec compile_program env l0 b0 = function 
   | Num x -> IConst (x,I32), l0, b0, []
@@ -78,6 +86,32 @@ let rec compile_program env l0 b0 = function
 
 and 
   compile_binop env l0 b0 e1 e2 t = function
+      | Ast.And ->
+          let r1, l1, b1, bs1 = compile_program env l0 b0 e1 in
+          let label_right = new_label() in
+          let r2, l2, b2, bs2 = compile_program env label_right [] e2 in
+          let label_phi = new_label() in
+          let branch_left = BrI1 (r1, label_right, label_phi) in
+          let exit_block_left = (l1, b1 @ [branch_left]) in
+          let branch_right = BrLabel (label_phi) in
+          let right_exit_block = (l2, b2 @ [branch_right]) in
+          let register_phi = new_reg() in
+          let merge_instruction = PhiI1 (register_phi, [(r1, l1);(r2, l2)]) in
+          (Register register_phi, label_phi, [merge_instruction], bs1 @ [exit_block_left] @ bs2 @ [right_exit_block])
+
+      | Ast.Or ->
+          let r1, l1, b1, bs1 = compile_program env l0 b0 e1 in
+          let label_right = new_label() in
+          let r2, l2, b2, bs2 = compile_program env label_right [] e2 in
+          let label_phi = new_label() in
+          let branch_left = BrI1 (r1, label_phi, label_right) in
+          let exit_block_left = (l1, b1 @ [branch_left]) in
+          let branch_right = BrLabel (label_phi) in
+          let right_exit_block = (l2, b2 @ [branch_right]) in
+          let register_phi = new_reg() in
+          let merge_instruction = PhiI1 (register_phi, [(r1, l1);(r2, l2)]) in
+          (Register register_phi, label_phi, [merge_instruction], bs1 @ [exit_block_left] @ bs2 @ [right_exit_block])
+
       | op -> 
           let r1,l1,b1,bs1 = compile_program env l0 b0 e1 in
           let r2,l2,b2,bs2 = compile_program env l1 b1 e2 in

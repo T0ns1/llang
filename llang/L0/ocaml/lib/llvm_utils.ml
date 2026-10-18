@@ -23,8 +23,15 @@ let unparse_llvm_i = function
   | Subi32 (r,p1,p2) -> string_of_register r^" = sub nsw i32 "^unparse_result p1^", "^unparse_result p2
   | Muli32 (r,p1,p2) -> string_of_register r^" = mul nsw i32 "^unparse_result p1^", "^unparse_result p2
   | Divi32 (r,p1,p2) -> string_of_register r^" = sdiv i32 "^unparse_result p1^", "^unparse_result p2
+  | Modi32 (r,p1,p2) -> string_of_register r^" = srem i32 "^unparse_result p1^", "^unparse_result p2
   | Cmp (r, op, p1, p2, t) ->
     string_of_register r^" = icmp "^string_of_op op^" "^string_of_llvm_type t ^" "^unparse_result p1^", "^unparse_result p2
+  | BrI1 (r,l1,l2) -> "br i1 "^unparse_result r^", label %"^string_of_label l1^", label %"^string_of_label l2
+  | BrLabel (l) -> "br label %"^string_of_label l
+  | PhiI1 (r, brs) ->
+      let brs_string_list = List.map (fun (r,l) -> "["^unparse_result r^", %"^string_of_label l^"]") brs in
+      let brs_string = String.concat ", " brs_string_list in
+      string_of_register r^" = phi i1 "^brs_string
 
 let preamble = 
   "; ModuleID = 'llang.c'\n"^

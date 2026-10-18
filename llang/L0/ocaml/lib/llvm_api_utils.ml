@@ -54,6 +54,9 @@ let emit_instr builder blocks regs = function
   | Divi32 (r, p1, p2) ->
     let v = Llvm.build_sdiv (llvalue_of_result regs p1) (llvalue_of_result regs p2) (llvm_reg_name r) builder in
     Hashtbl.replace regs r v
+  | Modi32 (r, p1, p2) ->
+    let v = Llvm.build_srem (llvalue_of_result regs p1) (llvalue_of_result regs p2) (llvm_reg_name r) builder in
+    Hashtbl.replace regs r v
   | Cmp (r, op, p1, p2, t) ->
     let llvm_op =
       match op with
@@ -66,6 +69,15 @@ let emit_instr builder blocks regs = function
   in
     let v = Llvm.build_icmp llvm_op (llvalue_of_result regs p1) (llvalue_of_result regs p2) (llvm_reg_name r) builder in
     Hashtbl.replace regs r v
+  | BrI1 (r, l1, l2) ->
+      ignore (Llvm.build_cond_br (llvalue_of_result regs r) (block_of_label blocks l1) (block_of_label blocks l2) builder)
+  | BrLabel (l) ->
+      ignore (Llvm.build_br (block_of_label blocks l) builder)
+  | PhiI1 (r, brs) ->
+      let incoming_branches = List.map (fun (r,l) -> (llvalue_of_result regs r, block_of_label blocks l)) brs in
+      let v = Llvm.build_phi incoming_branches (llvm_reg_name r) builder in
+      Hashtbl.replace regs r v
+
   (* | _ -> failwith "Unsupported instruction in LLVM emission" *)
 
 (* Emits every instruction of one block, positioning [builder] at its

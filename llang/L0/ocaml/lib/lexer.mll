@@ -10,6 +10,7 @@ rule read = parse
   | '-'                      { MINUS }
   | '*'                      { TIMES }
   | '/'                      { DIV }
+  | '%'                      { MOD }
   | '('                      { LPAREN }
   | ')'                      { RPAREN }
 

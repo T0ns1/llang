@@ -30,6 +30,30 @@ let test_parses_subtraction_and_division _ =
     (BinOp (Div, BinOp (Sub, Num 10, Num 4), Num 2))
     (parse_string "(10 - 4) / 2")
 
+let test_parses_modulo _ =
+  assert_equal (BinOp (Mod, Num 10, Num 3)) (parse_string "10 % 3")
+
+let test_modulo_has_multiplicative_precedence _ =
+  assert_equal
+    (BinOp (Add, Num 10, BinOp (Mod, Num 7, Num 4)))
+    (parse_string "10 + 7 % 4")
+
+let test_unparses_modulo _ =
+  assert_equal "10 % 3" (unparse_ast (parse_string "10 % 3"))
+
+let test_evaluates_modulo _ =
+  assert_equal (Int 1) (eval (parse_string "10 % 3"))
+
+let test_evaluates_negative_modulo _ =
+  assert_equal (Int (-1)) (eval (parse_string "-10 % 3"))
+
+let test_modulo_by_zero_raises _ =
+  assert_raises Division_by_zero (fun () -> eval (parse_string "10 % 0"))
+
+let test_types_modulo_as_int _ =
+  let typed = Llang.Typing.type_synth (parse_string "10 % 3") in
+  assert_equal TInt (Llang.Ast_typed.type_of typed)
+
 let test_unparses_back_to_a_readable_expression _ = (* The current unparsing function is not correct *)
   assert_equal "3 + 4 * (2 - 1)" (unparse_ast (parse_string "3 + 4 * (2 - 1)"))
 
@@ -66,6 +90,24 @@ let test_evaluates_logical_and _ =
 
 let test_evaluates_logical_or _ =
   assert_equal (Bool true) (eval (parse_string "false || true"))
+
+let test_and_short_circuits_when_left_is_false _ =
+  assert_equal
+    (Bool false)
+    (eval (parse_string "false && (1 / 0 = 0)"))
+
+let test_or_short_circuits_when_left_is_true _ =
+  assert_equal
+    (Bool true)
+    (eval (parse_string "true || (1 / 0 = 0)"))
+
+let test_and_evaluates_right_when_left_is_true _ =
+  assert_raises Division_by_zero (fun () ->
+      eval (parse_string "true && (1 / 0 = 0)"))
+
+let test_or_evaluates_right_when_left_is_false _ =
+  assert_raises Division_by_zero (fun () ->
+      eval (parse_string "false || (1 / 0 = 0)"))
 
 let test_evaluates_logical_not _ =
   assert_equal (Bool false) (eval (parse_string "not true"))
@@ -152,6 +194,11 @@ let contains_substring haystack needle =
   in
   nlen = 0 || go 0
 
+let test_compiles_modulo_to_signed_remainder _ =
+  let typed = Llang.Typing.type_synth (parse_string "10 % 3") in
+  let llvm = Llang.Llvm_utils.string_of_program typed in
+  assert_bool "expected an LLVM srem instruction" (contains_substring llvm "srem i32 10, 3")
+
 let suite =
   "llang parser suite"
   >::: [
@@ -163,6 +210,15 @@ let suite =
          "parses unary minus" >:: test_parses_unary_minus;
          "parses subtraction and division"
          >:: test_parses_subtraction_and_division;
+         "parses modulo" >:: test_parses_modulo;
+         "gives modulo multiplicative precedence"
+         >:: test_modulo_has_multiplicative_precedence;
+         "unparses modulo" >:: test_unparses_modulo;
+         "evaluates modulo" >:: test_evaluates_modulo;
+         "evaluates negative modulo" >:: test_evaluates_negative_modulo;
+         "raises on modulo by zero" >:: test_modulo_by_zero_raises;
+         "types modulo as int" >:: test_types_modulo_as_int;
+         "compiles modulo to signed remainder" >:: test_compiles_modulo_to_signed_remainder;
          "unparses back to a readable expression"
          >:: test_unparses_back_to_a_readable_expression;
          "raises on invalid syntax" >:: test_raises_on_invalid_syntax;
@@ -178,6 +234,14 @@ let suite =
          "evaluates a boolean literal" >:: test_evaluates_a_boolean_literal;
          "evaluates logical and" >:: test_evaluates_logical_and;
          "evaluates logical or" >:: test_evaluates_logical_or;
+         "and short-circuits when left is false"
+         >:: test_and_short_circuits_when_left_is_false;
+         "or short-circuits when left is true"
+         >:: test_or_short_circuits_when_left_is_true;
+         "and evaluates right when left is true"
+         >:: test_and_evaluates_right_when_left_is_true;
+         "or evaluates right when left is false"
+         >:: test_or_evaluates_right_when_left_is_false;
          "evaluates logical not" >:: test_evaluates_logical_not;
          "evaluates an if expression" >:: test_evaluates_an_if_expression;
          "parses equality" >:: test_parses_equality;

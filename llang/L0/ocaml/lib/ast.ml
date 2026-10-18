@@ -11,6 +11,7 @@ type bin_op =
   | Sub
   | Mul
   | Div
+  | Mod
   | And
   | Or
   | Eq

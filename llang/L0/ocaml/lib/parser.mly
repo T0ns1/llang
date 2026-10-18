@@ -7,7 +7,7 @@ open Symbols
 %}
 
 %token <int> INT
-%token PLUS MINUS TIMES DIV LPAREN RPAREN EOF
+%token PLUS MINUS TIMES DIV MOD LPAREN RPAREN EOF
 %token TRUE FALSE AND OR NOT 
 %token EQ NE LT LE GT GE
 %token IF THEN ELSE
@@ -55,6 +55,7 @@ expr:
 term:
   | term TIMES call         { BinOp (Mul, $1, $3) }
   | term DIV   call         { BinOp (Div, $1, $3) }
+  | term MOD   call         { BinOp (Mod, $1, $3) }
   | call                    { $1 }
 ;
 

@@ -22,6 +22,7 @@ let unparse_bin_op = function
   | Sub -> "-"
   | Mul -> "*"
   | Div -> "/"
+  | Mod -> "%"
   | And -> "&&"
   | Or -> "||"
   | Eq -> "="

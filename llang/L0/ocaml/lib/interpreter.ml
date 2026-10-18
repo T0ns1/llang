@@ -35,6 +35,26 @@ let rec eval env = function
 
   | Bool b -> value_from_bool b
 
+  | BinOp (And, e1, e2) ->
+      let v1 = eval env e1 in
+      let bool1 = bool_from_value v1 in
+      if bool1 then
+        let v2 = eval env e2 in
+        let bool2 = bool_from_value v2 in
+        value_from_bool bool2
+      else
+        value_from_bool false
+
+  | BinOp (Or, e1, e2) ->
+      let v1 = eval env e1 in
+      let bool1 = bool_from_value v1 in
+      if bool1 then
+        value_from_bool true
+      else
+        let v2 = eval env e2 in
+        let bool2 = bool_from_value v2 in
+        value_from_bool bool2
+
   | BinOp (op, e1, e2) -> native_eval_bin_op op (eval env e1) (eval env e2)
 
   | UnOp (op, e) -> native_eval_un_op op (eval env e)
@@ -45,6 +65,7 @@ and native_eval_bin_op op v1 v2 =
   | Sub -> value_from_int (int_from_value v1 - int_from_value v2)
   | Mul -> value_from_int (int_from_value v1 * int_from_value v2)
   | Div -> value_from_int (int_from_value v1 / int_from_value v2)
+  | Mod -> value_from_int (int_from_value v1 mod int_from_value v2)
   | And -> value_from_bool (bool_from_value v1 && bool_from_value v2)
   | Or -> value_from_bool (bool_from_value v1 || bool_from_value v2)
   | Eq -> value_from_bool (v1 = v2)
