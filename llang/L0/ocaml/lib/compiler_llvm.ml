@@ -35,15 +35,21 @@ type llvm =
   | Modi32 of register * result * result
   | Cmp of register * cmp_op * result * result * i_type
   | BrI1 of result * label * label
-  | BrLabel of label
-  | PhiI1 of register * (result * label) list
+  | Br of label
+  | Phi of register * i_type * (result * label) list
 
 let llvm_type_of = function
   | Ast.TInt -> I32
   | Ast.TBool -> I1
+  | _ -> failwith "Unsupported type in LLVM compilation"
 
 let count = ref 0
 let new_reg = fun () -> count := !count + 1; !count
+
+let label_count = ref 0
+
+let new_label = fun () -> label_count := !label_count + 1; !label_count
+
 
 let empty_basic_block = []
 
@@ -82,6 +88,34 @@ let rec compile_program env l0 b0 = function
     let ret = new_reg() in
     (Register ret, l1, b1@[build_op Mul ret r1 r2 I32], bs1)
 
+  | If (cond, then_branch, else_branch, t) ->
+      let r1, l1, b1, bs1 = compile_program env l0 b0 cond in
+      let then_label = new_label() in
+      let r2, l2, b2, bs2 = compile_program env then_label empty_basic_block then_branch in
+      let else_label = new_label() in
+      let r3, l3, b3, bs3 = compile_program env else_label empty_basic_block else_branch in
+      let end_label = new_label() in
+      let bs = 
+        bs1@
+        [(l1, b1@[BrI1 (r1, then_label, else_label)])]@
+        bs2@
+        [(then_label, b2@[Br end_label])]@
+        bs3@
+        [(else_label, b3@[Br end_label])]
+      in
+      let ret = new_reg() in
+      (Register ret, end_label, [Phi (ret, llvm_type_of t, [(r2, l2); (r3, l3)])], bs)
+
+  | Let(id,e1,e2,_) -> 
+      let r1, l1, b1, bs1 = compile_program env l0 b0 e1 in
+      let new_env = env |> begin_scope |> add_binding id r1 in
+      let r2, l2, b2, bs2 = compile_program new_env l1 b1 e2 in
+      (r2, l2, b2, bs1@bs2 )
+
+  | Id (id,_) -> (lookup id env, l0, b0, [])
+
+  | _ -> failwith "Unsupported AST node in LLVM compilation"
+
 
 
 and 
@@ -93,10 +127,10 @@ and
           let label_phi = new_label() in
           let branch_left = BrI1 (r1, label_right, label_phi) in
           let exit_block_left = (l1, b1 @ [branch_left]) in
-          let branch_right = BrLabel (label_phi) in
+          let branch_right = Br label_phi in
           let right_exit_block = (l2, b2 @ [branch_right]) in
           let register_phi = new_reg() in
-          let merge_instruction = PhiI1 (register_phi, [(r1, l1);(r2, l2)]) in
+          let merge_instruction = Phi (register_phi, I1, [(r1, l1);(r2, l2)]) in
           (Register register_phi, label_phi, [merge_instruction], bs1 @ [exit_block_left] @ bs2 @ [right_exit_block])
 
       | Ast.Or ->
@@ -106,17 +140,19 @@ and
           let label_phi = new_label() in
           let branch_left = BrI1 (r1, label_phi, label_right) in
           let exit_block_left = (l1, b1 @ [branch_left]) in
-          let branch_right = BrLabel (label_phi) in
+          let branch_right = Br label_phi in
           let right_exit_block = (l2, b2 @ [branch_right]) in
           let register_phi = new_reg() in
-          let merge_instruction = PhiI1 (register_phi, [(r1, l1);(r2, l2)]) in
+          let merge_instruction = Phi (register_phi, I1, [(r1, l1);(r2, l2)]) in
           (Register register_phi, label_phi, [merge_instruction], bs1 @ [exit_block_left] @ bs2 @ [right_exit_block])
 
       | op -> 
           let r1,l1,b1,bs1 = compile_program env l0 b0 e1 in
           let r2,l2,b2,bs2 = compile_program env l1 b1 e2 in
           let ret = new_reg() in
-          (Register ret, l2, b2@[build_op op ret r1 r2 (llvm_type_of t)], bs1@bs2)
+          (* operand type, not result type: a comparison of ints is icmp i32 *)
+          ignore t;
+          (Register ret, l2, b2@[build_op op ret r1 r2 (llvm_type_of (type_of e1))], bs1@bs2)
 
 let compile_program:(label -> llvm list -> Ast_typed.ast_typed -> result * label * llvm list * (label * llvm list) list) = compile_program empty
 (* overrides the previous declaration*)

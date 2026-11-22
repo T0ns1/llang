@@ -71,9 +71,9 @@ let emit_instr builder blocks regs = function
     Hashtbl.replace regs r v
   | BrI1 (r, l1, l2) ->
       ignore (Llvm.build_cond_br (llvalue_of_result regs r) (block_of_label blocks l1) (block_of_label blocks l2) builder)
-  | BrLabel (l) ->
+  | Br l ->
       ignore (Llvm.build_br (block_of_label blocks l) builder)
-  | PhiI1 (r, brs) ->
+  | Phi (r, _, brs) ->
       let incoming_branches = List.map (fun (r,l) -> (llvalue_of_result regs r, block_of_label blocks l)) brs in
       let v = Llvm.build_phi incoming_branches (llvm_reg_name r) builder in
       Hashtbl.replace regs r v

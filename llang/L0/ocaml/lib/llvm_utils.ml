@@ -27,11 +27,13 @@ let unparse_llvm_i = function
   | Cmp (r, op, p1, p2, t) ->
     string_of_register r^" = icmp "^string_of_op op^" "^string_of_llvm_type t ^" "^unparse_result p1^", "^unparse_result p2
   | BrI1 (r,l1,l2) -> "br i1 "^unparse_result r^", label %"^string_of_label l1^", label %"^string_of_label l2
-  | BrLabel (l) -> "br label %"^string_of_label l
-  | PhiI1 (r, brs) ->
-      let brs_string_list = List.map (fun (r,l) -> "["^unparse_result r^", %"^string_of_label l^"]") brs in
-      let brs_string = String.concat ", " brs_string_list in
-      string_of_register r^" = phi i1 "^brs_string
+  | Br l -> "br label %"^string_of_label l
+  | Phi (r, t, lst) ->
+    let lst_str =
+      List.map (fun (res, l) -> "[ "^unparse_result res^", %"^string_of_label l^" ]") lst
+      |> String.concat ", "
+    in
+    string_of_register r^" = phi "^string_of_llvm_type t^" "^lst_str
 
 let preamble = 
   "; ModuleID = 'llang.c'\n"^
