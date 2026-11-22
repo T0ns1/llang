@@ -34,11 +34,7 @@ disj:
   | conj                         { $1 }
 
 conj:
-  | conj AND bterm          { BinOp (And, $1, $3) }
-  | bterm                   { $1 }
-
-bterm:
-  | NOT bterm               { UnOp (Not, $2) }
+  | conj AND comp           { BinOp (And, $1, $3) }
   | comp                    { $1 }
 
 comp:
@@ -64,6 +60,7 @@ term:
 
 call: 
   | MINUS factor            { UnOp (Neg, $2) }
+  | NOT factor              { UnOp (Not, $2) }   (* like application: not f x = (not f) x *)
   | call factor             { BinOp(App,$1,$2) }
   | factor                  { $1 }
 

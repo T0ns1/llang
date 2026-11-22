@@ -80,13 +80,14 @@ let rec compile_program env l0 b0 = function
 
   | UnOp (op, e, t) ->
     let r1, l1, b1, bs1 = compile_program env l0 b0 e in
-    let r2 = 
-      match op with 
-      | Ast.Neg -> IConst (-1,I32) 
-      | _ -> failwith "Unsupported unary operator in LLVM compilation"
-    in
     let ret = new_reg() in
-    (Register ret, l1, b1@[build_op Mul ret r1 r2 I32], bs1)
+    let instr =
+      match op with
+      | Ast.Neg -> build_op Mul ret r1 (IConst (-1, I32)) I32   (* -x  =  x * -1 *)
+      | Ast.Not -> Cmp (ret, Eq, r1, IConst (0, I1), I1)       (* not x  =  (x == false) *)
+    in
+    ignore t;
+    (Register ret, l1, b1@[instr], bs1)
 
   | If (cond, then_branch, else_branch, t) ->
       let r1, l1, b1, bs1 = compile_program env l0 b0 cond in

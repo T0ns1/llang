@@ -18,7 +18,7 @@ rule read = parse
   | "false"                  { FALSE }
   | "&&"                     { AND }
   | "||"                     { OR }
-  | "not "                   { NOT }
+  | "not"                   { NOT }
 
   | "if"                     { IF }
   | "then"                   { THEN }

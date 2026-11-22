@@ -12,15 +12,16 @@ let () =
     print_string "> "; flush stdout;
     match read_line () with
     | s ->
-        let ast = parse_string s in
         begin try
+        let ast = parse_string s in
           Printf.printf "\n-- Parser --\n";
           unparse_ast ast |> print_endline;
           (try
             Printf.printf "\n-- Untyped Interpreter --\n\n";
             ast |> eval |> string_of_value |> Printf.printf "= %s\n%!";
-            with Failure msg ->
-              Printf.eprintf "Interpreter Error: %s\n%!" msg);
+            with
+            | Failure msg -> Printf.eprintf "Interpreter Error: %s\n%!" msg
+            | Division_by_zero -> Printf.eprintf "Runtime Error: division by zero\n%!");
           begin try
             Printf.printf "\n-- Type Checking --\n\n";
             let ast_typed = type_synth ast in
@@ -35,8 +36,9 @@ let () =
             with Failure msg ->
               Printf.eprintf "Type Checking Error: %s\n%!" msg
           end;
-          with Failure msg ->
-            Printf.eprintf "Unparser Error: %s\n%!" msg
+          with
+          | Failure msg -> Printf.eprintf "Error: %s\n%!" msg
+          | Llang.Lexer.Lexing_error msg -> Printf.eprintf "Lexing Error: %s\n%!" msg
         end;
         loop ()
     | exception End_of_file -> print_endline "\nGoodbye!"
