@@ -9,7 +9,7 @@ open Symbols
 %token <int> INT
 %token PLUS MINUS TIMES DIV MOD LPAREN RPAREN EOF
 %token TRUE FALSE AND OR NOT 
-%token EQ NE LT LE GT GE
+%token EQ EQEQ NE LT LE GT GE
 %token IF THEN ELSE
 %token <string> ID
 %token LET IN
@@ -42,7 +42,7 @@ bterm:
   | comp                    { $1 }
 
 comp:
-  | comp EQ  expr           { BinOp (Eq, $1, $3) }
+  | comp EQEQ expr          { BinOp (Eq, $1, $3) }
   | comp NE  expr           { BinOp (Ne, $1, $3) }
   | comp LT  expr           { BinOp (Lt, $1, $3) }
   | comp LE  expr           { BinOp (Le, $1, $3) }

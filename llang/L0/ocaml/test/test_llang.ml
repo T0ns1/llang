@@ -91,20 +91,20 @@ let test_evaluates_logical_or _ =
 let test_and_short_circuits_when_left_is_false _ =
   assert_equal
     (Bool false)
-    (eval (parse_string "false && (1 / 0 = 0)"))
+    (eval (parse_string "false && (1 / 0 == 0)"))
 
 let test_or_short_circuits_when_left_is_true _ =
   assert_equal
     (Bool true)
-    (eval (parse_string "true || (1 / 0 = 0)"))
+    (eval (parse_string "true || (1 / 0 == 0)"))
 
 let test_and_evaluates_right_when_left_is_true _ =
   assert_raises Division_by_zero (fun () ->
-      eval (parse_string "true && (1 / 0 = 0)"))
+      eval (parse_string "true && (1 / 0 == 0)"))
 
 let test_or_evaluates_right_when_left_is_false _ =
   assert_raises Division_by_zero (fun () ->
-      eval (parse_string "false || (1 / 0 = 0)"))
+      eval (parse_string "false || (1 / 0 == 0)"))
 
 let test_evaluates_logical_not _ =
   assert_equal (Bool false) (eval (parse_string "not true"))
@@ -113,10 +113,10 @@ let test_evaluates_an_if_expression _ =
   assert_equal (Int 3) (eval (parse_string "if true then 3 else 4"))
 
 let test_parses_equality _ =
-  assert_equal (BinOp (Eq, Num 3, Num 4)) (parse_string "3 = 4")
+  assert_equal (BinOp (Eq, Num 3, Num 4)) (parse_string "3 == 4")
 
 let test_parses_inequality _ =
-  assert_equal (BinOp (Ne, Num 3, Num 4)) (parse_string "3 <> 4")
+  assert_equal (BinOp (Ne, Num 3, Num 4)) (parse_string "3 != 4")
 
 let test_parses_less_than _ =
   assert_equal (BinOp (Lt, Num 3, Num 4)) (parse_string "3 < 4")
@@ -132,13 +132,13 @@ let test_parses_greater_than_or_equal _ =
 
 
 let test_evaluates_equality_true _ =
-  assert_equal (Bool true) (eval (parse_string "3 = 3"))
+  assert_equal (Bool true) (eval (parse_string "3 == 3"))
 
 let test_evaluates_equality_false _ =
-  assert_equal (Bool false) (eval (parse_string "3 = 4"))
+  assert_equal (Bool false) (eval (parse_string "3 == 4"))
 
 let test_evaluates_inequality _ =
-  assert_equal (Bool true) (eval (parse_string "3 <> 4"))
+  assert_equal (Bool true) (eval (parse_string "3 != 4"))
 
 let test_evaluates_less_than _ =
   assert_equal (Bool true) (eval (parse_string "3 < 4"))

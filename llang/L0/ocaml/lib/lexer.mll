@@ -24,6 +24,8 @@ rule read = parse
   | "then"                   { THEN }
   | "else"                   { ELSE }
 
+  | "=="                     { EQEQ }
+  | "!="                     { NE }
   | "="                      { EQ }
   | "<"                      { LT }
   | ">"                      { GT }
