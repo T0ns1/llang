@@ -37,5 +37,7 @@ Cargo.lock
 *.swp
 .DS_Store
 
-# ---- llang generated output ----
-output.ll
+# ---- llang generated output (REPL/clang artifacts) ----
+output*.ll
+output
+o99
