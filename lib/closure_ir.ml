@@ -26,6 +26,12 @@ type fundef = {
 
 type program = { funs : fundef list; main : cexp }
 
+let type_of = function
+  | Num _ -> Ast.TInt
+  | Bool _ -> Ast.TBool
+  | Var (_, t) | BinOp (_, _, _, t) | UnOp (_, _, t) | If (_, _, _, t)
+  | Let (_, _, _, t) | MakeClosure (_, _, t) | Apply (_, _, t) -> t
+
 (* ---------- Printing (llang --cc) ---------- *)
 
 let string_of_type = Parser_utils.string_of_type

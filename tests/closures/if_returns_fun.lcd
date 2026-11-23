@@ -1,0 +1,2 @@
+let f = if true then fun (x : int) -> x + 1 else fun (x : int) -> x * 2 in
+f 10

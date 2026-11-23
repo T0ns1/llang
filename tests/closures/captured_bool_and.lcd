@@ -1,0 +1,3 @@
+let b = true in
+let f = fun (x : int) -> if b && x > 0 then x else 0 - x in
+f 5 + f (0 - 3)

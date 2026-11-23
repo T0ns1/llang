@@ -64,7 +64,9 @@ lib/
   interpreter.ml      environment-based interpreter; functions evaluate to closures
   environment.ml      scoped environments
   symbols.ml          identifier interning
-  compiler_llvm.ml    compiles the typed AST to basic blocks of LLVM instructions
+  closure_ir.ml       the program after closure conversion: hoisted functions and their environments
+  closure_conv.ml     free-variable analysis and closure conversion
+  compiler_llvm.ml    compiles the converted program to basic blocks of LLVM instructions
   llvm_utils.ml       prints the LLVM IR module, including the result printing
 test/test_llang.ml    OUnit unit tests
 tests/                end-to-end test programs (see above)
@@ -78,7 +80,7 @@ run_tests.sh          end-to-end test runner
 | Integers, booleans, arithmetic (`+ - * / %`, unary `-`), comparisons, `not` | interpreter and compiler |
 | Short-circuit `&&` and `\|\|` | interpreter and compiler |
 | `let`, `if` | interpreter and compiler |
-| `fun` and application (closures) | interpreter only; compilation not yet implemented |
+| `fun` and application (closures) | interpreter and compiler (closure conversion, then heap-allocated closures) |
 | Division by zero in compiled code | not yet detected (the interpreter reports it) |
 
 A Rust version of the starter code is kept on the `rust` branch.
