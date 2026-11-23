@@ -8,7 +8,13 @@ type value =
   | Bool of bool
   | Closure of symbol * ast * value env
 
-let value_from_int n = Int n
+(* Integers are 32-bit: [wrap32 n] keeps the low 32 bits of [n],
+   sign-extended, as the hardware does on overflow. Operands are always
+   32-bit and OCaml's int has 63 bits, so a result computed with int is
+   exact before it is wrapped. *)
+let wrap32 n = Int32.to_int (Int32.of_int n)
+
+let value_from_int n = Int (wrap32 n)
 let value_from_bool b = Bool b
 
 let int_from_value = function 

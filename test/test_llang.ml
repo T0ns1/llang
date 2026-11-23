@@ -192,9 +192,10 @@ let contains_substring haystack needle =
   nlen = 0 || go 0
 
 let test_compiles_modulo_to_signed_remainder _ =
+  (* the divisor is a register: it is replaced by 1 when it is -1 *)
   let typed = Llang.Typing.type_synth (parse_string "10 % 3") in
   let llvm = Llang.Llvm_utils.string_of_program typed in
-  assert_bool "expected an LLVM srem instruction" (contains_substring llvm "srem i32 10, 3")
+  assert_bool "expected an LLVM srem instruction" (contains_substring llvm "srem i32 10, %")
 
 
 (* ---------- Free variables (closure conversion) ---------- *)

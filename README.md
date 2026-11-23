@@ -81,6 +81,7 @@ run_tests.sh          end-to-end test runner
 | Short-circuit `&&` and `\|\|` | interpreter and compiler |
 | `let`, `if` | interpreter and compiler |
 | `fun` and application (closures) | interpreter and compiler (closure conversion, then heap-allocated closures) |
-| Division by zero in compiled code | not yet detected (the interpreter reports it) |
+| 32-bit integers (wrap on overflow; out-of-range literals are a lexing error) | interpreter and compiler |
+| Division and remainder by zero: runtime error, exit status 1 | interpreter and compiler |
 
 A Rust version of the starter code is kept on the `rust` branch.

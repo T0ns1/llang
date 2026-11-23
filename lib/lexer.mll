@@ -5,7 +5,9 @@
 
 rule read = parse
   | [' ' '\t' '\r' '\n']     { read lexbuf }       (* skip whitespace *)
-  | ['0'-'9']+ as i          { INT (int_of_string i) }
+  | ['0'-'9']+ as i          { match int_of_string_opt i with
+                               | Some n when n <= 2147483647 -> INT n
+                               | _ -> raise (Lexing_error ("integer literal out of range: " ^ i)) }
   | '+'                      { PLUS }
   | '-'                      { MINUS }
   | '*'                      { TIMES }

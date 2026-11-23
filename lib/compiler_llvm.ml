@@ -49,6 +49,11 @@ type llvm =
   | Call of register * i_type * result * result * i_type * result
       (* %r = call ret_type fn(ptr env, arg_type arg) *)
   | Ret of i_type * result
+  | Select of register * i_type * result * result * result
+      (* %r = select i1 cond, t a, t b *)
+  | DivZeroError of register
+      (* prints the division-by-zero error to stderr, exits with status 1;
+         ends its block (unreachable) *)
 
 let llvm_type_of = function
   | Ast.TInt -> I32
@@ -123,9 +128,9 @@ let rec compile_program env l0 b0 = function
         bs1@
         [(l1, b1@[BrI1 (r1, then_label, else_label)])]@
         bs2@
-        [(then_label, b2@[Br end_label])]@
+        [(l2, b2@[Br end_label])]@
         bs3@
-        [(else_label, b3@[Br end_label])]
+        [(l3, b3@[Br end_label])]
       in
       let ret = new_reg() in
       (Register ret, end_label, [Phi (ret, llvm_type_of t, [(r2, l2); (r3, l3)])], bs)
@@ -218,9 +223,42 @@ and
       | op -> 
           let r1,l1,b1,bs1 = compile_program env l0 b0 e1 in
           let r2,l2,b2,bs2 = compile_program env l1 b1 e2 in
+          if op = Ast.Div || op = Ast.Mod then begin
+            (* Check the divisor first: if it is zero, branch to a block that
+               reports the error and exits. The division happens in a new
+               block, which is where this expression now ends, so an
+               enclosing phi must name ok_label, not l2. *)
+            let is_zero = new_reg () in
+            let error_label = new_label () in
+            let ok_label = new_label () in
+            (* registers must increase in the order they appear in the text:
+               the dprintf result in the error block comes before ret *)
+            let printed = new_reg () in
+            let check = [ Cmp (is_zero, Eq, r2, IConst (0, I32), I32);
+                          BrI1 (Register is_zero, error_label, ok_label) ] in
+            (* -2147483648 / -1 overflows, and sdiv/srem by -1 is undefined in
+               LLVM (it traps on x86). Divide by 1 instead when the divisor is
+               -1: x % -1 = x % 1 = 0, and x / -1 = 0 - x, which wraps. *)
+            let minus_one = new_reg () in
+            let divisor = new_reg () in
+            let q = new_reg () in
+            let guard = [ Cmp (minus_one, Eq, r2, IConst (-1, I32), I32);
+                          Select (divisor, I32, Register minus_one, IConst (1, I32), r2);
+                          build_op op q r1 (Register divisor) I32 ] in
+            let ret, result_code =
+              if op = Ast.Mod then (q, [])
+              else
+                let neg = new_reg () in
+                let ret = new_reg () in
+                (ret, [ Subi32 (neg, IConst (0, I32), r1);
+                        Select (ret, I32, Register minus_one, Register neg, Register q) ])
+            in
+            (Register ret, ok_label, guard @ result_code,
+             bs1 @ bs2 @ [ (l2, b2 @ check); (error_label, [DivZeroError printed]) ])
+          end else
           let ret = new_reg() in
-          (* operand type, not result type: a comparison of ints is icmp i32 *)
           ignore t;
+          (* operand type, not result type: a comparison of ints is icmp i32 *)
           (Register ret, l2, b2@[build_op op ret r1 r2 (llvm_type_of (type_of e1))], bs1@bs2)
 
 (* [compile_fun f]: the basic blocks of hoisted function [f]. It starts

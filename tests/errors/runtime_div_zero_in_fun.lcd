@@ -1,0 +1,2 @@
+let f = fun (d : int) -> 100 / d in
+f 5 + f 0

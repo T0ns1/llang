@@ -26,9 +26,9 @@ let string_of_struct ts =
   "{ "^String.concat ", " (List.map string_of_llvm_type ts)^" }"
 
 let unparse_llvm_i = function 
-  | Addi32 (r,p1,p2) -> string_of_register r^" = add nsw i32 "^unparse_result p1^", "^unparse_result p2
-  | Subi32 (r,p1,p2) -> string_of_register r^" = sub nsw i32 "^unparse_result p1^", "^unparse_result p2
-  | Muli32 (r,p1,p2) -> string_of_register r^" = mul nsw i32 "^unparse_result p1^", "^unparse_result p2
+  | Addi32 (r,p1,p2) -> string_of_register r^" = add i32 "^unparse_result p1^", "^unparse_result p2
+  | Subi32 (r,p1,p2) -> string_of_register r^" = sub i32 "^unparse_result p1^", "^unparse_result p2
+  | Muli32 (r,p1,p2) -> string_of_register r^" = mul i32 "^unparse_result p1^", "^unparse_result p2
   | Divi32 (r,p1,p2) -> string_of_register r^" = sdiv i32 "^unparse_result p1^", "^unparse_result p2
   | Modi32 (r,p1,p2) -> string_of_register r^" = srem i32 "^unparse_result p1^", "^unparse_result p2
   | Cmp (r, op, p1, p2, t) ->
@@ -54,17 +54,23 @@ let unparse_llvm_i = function
     string_of_register r^" = call "^string_of_llvm_type ret_t^" "^unparse_result fn
     ^"(ptr "^unparse_result env^", "^string_of_llvm_type arg_t^" "^unparse_result arg^")"
   | Ret (t, v) -> "ret "^string_of_llvm_type t^" "^unparse_result v
+  | Select (r, t, c, a, b) ->
+    string_of_register r^" = select i1 "^unparse_result c^", "^string_of_llvm_type t^" "
+    ^unparse_result a^", "^string_of_llvm_type t^" "^unparse_result b
+  | DivZeroError r ->
+    string_of_register r^" = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.divzero)\n"^
+    "  call void @exit(i32 1)\n"^
+    "  unreachable"
 
+(* No target triple or datalayout: the IR does not depend on the target,
+   so clang compiles it for the machine it runs on. *)
 let preamble = 
-  "; ModuleID = 'llang.c'\n"^
-  "source_filename = \"llang.c\"\n"^
-  "target datalayout = \"e-m:o-i64:64-i128:128-n32:64-S128-Fn32\"\n"^
-  "target triple = \"arm64-apple-macosx26.0.0\"\n\n"^
   "@.str = private unnamed_addr constant [4 x i8] c\"%d\\0A\\00\", align 1\n"^
   "@.str.s = private unnamed_addr constant [4 x i8] c\"%s\\0A\\00\", align 1\n"^
   "@.true = private unnamed_addr constant [5 x i8] c\"true\\00\", align 1\n"^
   "@.false = private unnamed_addr constant [6 x i8] c\"false\\00\", align 1\n"^
-  "@.fun = private unnamed_addr constant [6 x i8] c\"<fun>\\00\", align 1\n\n"
+  "@.fun = private unnamed_addr constant [6 x i8] c\"<fun>\\00\", align 1\n"^
+  "@.divzero = private unnamed_addr constant [33 x i8] c\"Runtime error: division by zero\\0A\\00\", align 1\n\n"
 
 let main_header =
   "; Function Attrs: noinline nounwind optnone ssp uwtable(sync)\n"^
@@ -91,7 +97,9 @@ let epilogue ret t =
   "  ret i32 0\n"^
   "}\n\n"^
   "declare i32 @printf(ptr noundef, ...) #1\n"^
-  "declare ptr @malloc(i64)\n"
+  "declare ptr @malloc(i64)\n"^
+  "declare i32 @dprintf(i32, ptr, ...)\n"^
+  "declare void @exit(i32)\n"
 
 let string_of_blocks blocks =
   List.fold_left (fun acc (l, b) ->

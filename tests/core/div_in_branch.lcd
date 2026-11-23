@@ -1,0 +1,2 @@
+let x = 4 in
+(if x > 0 then 100 / x else 0) + (if x < 0 then 0 else 7 % x)
