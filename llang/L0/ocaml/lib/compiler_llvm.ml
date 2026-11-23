@@ -41,7 +41,7 @@ type llvm =
 let llvm_type_of = function
   | Ast.TInt -> I32
   | Ast.TBool -> I1
-  | _ -> failwith "Unsupported type in LLVM compilation"
+  | _ -> failwith "Compile error: unsupported type"
 
 let count = ref 0
 let new_reg = fun () -> count := !count + 1; !count
@@ -66,7 +66,7 @@ let build_op op ret r1 r2 t =
   | Ast.Le, _ -> Cmp (ret,Le,r1,r2,t)
   | Ast.Gt, _ -> Cmp (ret,Gt,r1,r2,t)
   | Ast.Ge, _ -> Cmp (ret,Ge,r1,r2,t)
-  | _ -> failwith "Unsupported binary operator in LLVM compilation"
+  | _ -> failwith "Compile error: unsupported binary operator"
 
 let label_count = ref 0
 let new_label = fun() -> label_count := !label_count + 1; !label_count
@@ -115,7 +115,7 @@ let rec compile_program env l0 b0 = function
 
   | Id (id,_) -> (lookup id env, l0, b0, [])
 
-  | _ -> failwith "Unsupported AST node in LLVM compilation"
+  | _ -> failwith "Compile error: unsupported construct (closures are not compiled yet)"
 
 
 

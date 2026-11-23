@@ -55,15 +55,27 @@ From the OCaml project directory:
 ```bash
 cd llang/L0/ocaml
 dune build
-dune exec llang
 ```
 
-The REPL displays the parsed expression, interpreter result, inferred type, and generated LLVM. It also writes textual LLVM to `output.ll` and bitcode to `output.bc`.
+Then use the `llang` executable (through `dune exec llang --`):
 
-For example:
+| Command | Behaviour |
+|---|---|
+| `llang -i prog.lcd` | type check, then interpret; print the result |
+| `llang -i` | interactive prompt: type check and evaluate each line |
+| `llang -c prog.lcd` | type check, then compile; write LLVM IR to stdout |
+| `llang -c` | same, reading the program from stdin |
+
+To run a compiled program:
+
+```bash
+dune exec llang -- -c prog.lcd > prog.ll && clang -w prog.ll -o prog && ./prog
+```
+
+Errors (parse, type, runtime) are printed to stderr and the tool exits with status 1. For example:
 
 ```text
-> false && (1 / 0 = 0)
+> false && (1 / 0 == 0)
 ```
 
 The interpreter returns `false` without evaluating the division because logical AND uses short-circuit semantics.

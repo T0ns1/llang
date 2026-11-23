@@ -10,14 +10,14 @@ let type_bin_op op t1 t2 =
   | (Eq | Ne), TBool, TBool -> TBool
   | (Lt | Le | Gt | Ge), TInt, TInt -> TBool
   | App, TArrow (t1, t2), t1' when t1 = t1' -> t2
-  | App, _, _ -> failwith "Type error in function application"
-  | _ -> failwith "Type error in binary operation"
+  | App, _, _ -> failwith "Type error: ill-typed function application"
+  | _ -> failwith "Type error: ill-typed binary operation"
 
 let type_un_op op t =
   match op, t with
   | Neg, TInt -> TInt
   | Not, TBool -> TBool
-  | _ -> failwith "Type error in unary operation"
+  | _ -> failwith "Type error: ill-typed unary operation"
 
 let rec type_synth env = function
   | Ast.Num n -> Ast_typed.Num n
@@ -36,9 +36,9 @@ let rec type_synth env = function
       | TBool -> 
         begin match type_synth env then_branch, type_synth env else_branch with
         | t1, t2 when type_of t1 = type_of t2 -> Ast_typed.If (type_synth env cond, t1, t2, type_of t1)
-        | _ -> failwith "Branches of if expression must have the same type"
+        | _ -> failwith "Type error: branches of if must have the same type"
         end
-      | _ -> failwith "Condition in if expression must be a boolean"
+      | _ -> failwith "Type error: condition of if must be a boolean"
       end
 
   | Ast.Let (id, e1, e2) ->
@@ -47,7 +47,11 @@ let rec type_synth env = function
       let e2 = type_synth new_env e2 in
       Ast_typed.Let (id, e1, e2, type_of e2)
 
-  | Ast.Id id -> Id(id, lookup id env)
+  | Ast.Id id ->
+      begin match lookup_opt id env with
+      | Some t -> Id (id, t)
+      | None -> failwith ("Type error: unbound identifier " ^ Symbols.string_of_symbol id)
+      end
 
   | Ast.Abs (id, t, e) -> 
       let new_env = env |> begin_scope |> add_binding id t in

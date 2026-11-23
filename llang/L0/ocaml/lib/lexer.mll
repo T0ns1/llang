@@ -43,7 +43,7 @@ rule read = parse
   | "bool"                   { TBOOL }
   | ":"                      { COLON }
 
-  | ['a'-'z' 'A'-'Z'] ['a'-'z' 'A'-'Z' '0'-'9']* as id { ID id }
+  | ['a'-'z' 'A'-'Z'] ['a'-'z' 'A'-'Z' '0'-'9' '_']* as id { ID id }
 
   | eof                      { EOF }
   | _ as c                   { raise (Lexing_error (Printf.sprintf "Unexpected char: %c" c)) }

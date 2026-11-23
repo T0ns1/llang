@@ -1,46 +1,73 @@
+(* bin/main.ml: command-line entry point for llang *)
 
 open Llang.Parser_utils
 open Llang.Interpreter
 open Llang.Typing
-open Llang.Compiler_llvm
 
-let () = print_endline "Welcome to the L language REPL & Compiler! (in OCaml)"
+(* ---------- Reading the program ---------- *)
 
-let () =
+let read_file file =
+  In_channel.with_open_text file In_channel.input_all
+
+let read_stdin () =
+  In_channel.input_all stdin
+
+(* ---------- Pipelines ---------- *)
+
+let interpret src =
+  let ast = parse_string src in
+  let _typed = type_synth ast in (* Reject non well-typed expressions *)
+  print_endline (string_of_value (eval ast))
+
+let compile src =
+  let ast = parse_string src in
+  let typed = type_synth ast in
+  print_string (Llang.Llvm_utils.string_of_program typed)
+
+(* ---------- Errors ---------- *)
+
+(* Exception -> Message mapping. Every message starts with its kind:
+   "Parse error", "Lexing error", "Type error", "Runtime error", ... *)
+let message_of_exception = function
+  | Failure msg -> msg
+  | Llang.Lexer.Lexing_error msg -> "Lexing error: " ^ msg
+  | Division_by_zero -> "Runtime error: division by zero"
+  | Sys_error msg -> "Error: " ^ msg
+  | e -> "Unexpected error: " ^ Printexc.to_string e
+
+(* ---------- REPL ---------- *)
+
+(* Interactive mode: on error, report and keep going. *)
+let repl () =
+  print_endline "Welcome to the L language REPL & Compiler! (in OCaml)";
   print_endline "Insert an expression. Ctrl+D to exit.";
   let rec loop () =
     print_string "> "; flush stdout;
     match read_line () with
-    | s ->
-        begin try
-        let ast = parse_string s in
-          Printf.printf "\n-- Parser --\n";
-          unparse_ast ast |> print_endline;
-          (try
-            Printf.printf "\n-- Untyped Interpreter --\n\n";
-            ast |> eval |> string_of_value |> Printf.printf "= %s\n%!";
-            with
-            | Failure msg -> Printf.eprintf "Interpreter Error: %s\n%!" msg
-            | Division_by_zero -> Printf.eprintf "Runtime Error: division by zero\n%!");
-          begin try
-            Printf.printf "\n-- Type Checking --\n\n";
-            let ast_typed = type_synth ast in
-            ast_typed |> Llang.Ast_typed.type_of |> string_of_btype |> Printf.printf "= %s\n%!";
-            (try
-                Printf.printf "\n-- LLVM --\n\n";
-                Llang.Llvm_utils.string_of_program ast_typed |> print_endline;
-                Llang.Llvm_utils.write_llvm_text_file ast_typed "output.ll";
-                Llang.Llvm_api_utils.write_bitcode_file ast_typed "output.bc"
-              with Failure msg ->
-                Printf.eprintf "LLVM Text Error: %s\n%!" msg);
-            with Failure msg ->
-              Printf.eprintf "Type Checking Error: %s\n%!" msg
-          end;
-          with
-          | Failure msg -> Printf.eprintf "Error: %s\n%!" msg
-          | Llang.Lexer.Lexing_error msg -> Printf.eprintf "Lexing Error: %s\n%!" msg
-        end;
+    | line ->
+        (try interpret line with e -> prerr_endline (message_of_exception e));
         loop ()
-    | exception End_of_file -> print_endline "\nGoodbye!"
+    | exception End_of_file -> print_newline ()
   in
   loop ()
+
+(* ---------- Command line ---------- *)
+
+let usage () =
+  prerr_endline "usage: llang -i [file] | llang -c [file]";
+  exit 2
+
+(* Batch mode: any error that escapes is reported once, here, and the
+   program exits with status 1. ([exit] does not raise an exception, so
+   [usage]'s exit 2 is not caught by this handler.) *)
+let () =
+  try
+    match Array.to_list Sys.argv |> List.tl with
+    | ["-i"; file] -> interpret (read_file file)
+    | ["-i"]       -> repl ()
+    | ["-c"; file] -> compile (read_file file)
+    | ["-c"]       -> compile (read_stdin ())
+    | _            -> usage ()
+  with e ->
+    prerr_endline (message_of_exception e);
+    exit 1

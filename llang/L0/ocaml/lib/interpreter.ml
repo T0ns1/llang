@@ -22,7 +22,7 @@ let bool_from_value = function
 let string_of_value = function
   | Int n -> string_of_int n
   | Bool b -> string_of_bool b
-  | Closure (id,e,_) -> "fun "^string_of_symbol id^" -> "^unparse_ast e
+  | Closure _ -> "<fun>"
 
 
 let native_eval_un_op op v =
