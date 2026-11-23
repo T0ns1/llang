@@ -1,0 +1,2 @@
+let twice = fun (f : int -> int) -> fun (x : int) -> f (f x) in
+twice (fun (x : int) -> x * 3) 2

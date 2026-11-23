@@ -1,0 +1,4 @@
+let a = 1 in
+let b = a + 1 in
+let c = a + b in
+a * 100 + b * 10 + c

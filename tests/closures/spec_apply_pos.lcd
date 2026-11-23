@@ -1,0 +1,5 @@
+let bonus = 10 in
+let apply_pos = fun (f : int -> int) -> fun (x : int) ->
+  if x > 0 then f x + bonus else 0 in
+let square = fun (n : int) -> n * n in
+apply_pos square 5

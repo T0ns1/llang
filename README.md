@@ -1,61 +1,18 @@
 # llang
 
-`llang` is an educational compiler and interpreter project developed for the Language and Compiler Design course at NOVA FCT. It explores the main stages of a language implementation, from lexing and parsing to type checking, interpretation, and LLVM code generation.
-
-The OCaml implementation is the active version. A parallel Rust implementation is included as work in progress.
-
-## Current OCaml features
-
-- Integer and boolean literals
-- Arithmetic operators: `+`, `-`, `*`, `/`, and `%`
-- Integer comparisons and boolean equality
-- Unary negation and logical negation
-- Short-circuit `&&` and `||`
-- Operator precedence and parentheses
-- Static type synthesis using a typed AST
-- Direct AST interpretation
-- LLVM text generation
-- Basic blocks, conditional branches, and phi nodes for short-circuit control flow
-
-## Project structure
-
-```text
-llang/
-└── L0/
-    ├── ocaml/   Active OCaml lexer, parser, interpreter, type checker, and compiler
-    └── rust/    Rust implementation in progress
-```
-
-The main OCaml modules are under `llang/L0/ocaml/lib`:
-
-- `ast.ml` and `ast_typed.ml`: untyped and typed syntax trees
-- `lexer.mll` and `parser.mly`: source-language frontend
-- `typing.ml`: type synthesis
-- `interpreter.ml`: direct evaluation
-- `compiler_llvm.ml`: internal LLVM-like instruction and basic-block generation
-- `llvm_utils.ml`: textual LLVM emission
+An interpreter, type checker and LLVM compiler for **L**, a small functional language, written in OCaml for the Language and Compiler Design course (NOVA FCT, 2026/27).
 
 ## Requirements
 
-The OCaml version currently expects:
-
-- OCaml
-- Dune 3.23 or newer
-- LLVM 18 (`clang`, to build the generated IR)
-- OUnit2
-
-An opam environment is recommended for installing the OCaml dependencies.
+- OCaml and Dune 3.23 or newer
+- OUnit2 (`opam install ounit2`), for the unit tests
+- LLVM 18's `clang`, to build the LLVM IR the compiler generates
 
 ## Build and run
 
-From the OCaml project directory:
-
 ```bash
-cd llang/L0/ocaml
 dune build
 ```
-
-Then use the `llang` executable (through `dune exec llang --`):
 
 | Command | Behaviour |
 |---|---|
@@ -64,30 +21,63 @@ Then use the `llang` executable (through `dune exec llang --`):
 | `llang -c prog.lcd` | type check, then compile; write LLVM IR to stdout |
 | `llang -c` | same, reading the program from stdin |
 
-To run a compiled program:
+Run it through dune (`dune exec llang -- -i prog.lcd`) or directly as `_build/default/bin/main.exe`. To run a compiled program:
 
 ```bash
 dune exec llang -- -c prog.lcd > prog.ll && clang -w prog.ll -o prog && ./prog
 ```
 
-Errors (parse, type, runtime) are printed to stderr and the tool exits with status 1. For example:
-
-```text
-> false && (1 / 0 == 0)
-```
-
-The interpreter returns `false` without evaluating the division because logical AND uses short-circuit semantics.
+A program prints its value followed by a newline: integers in decimal, `true`/`false`, and `<fun>` for functions. Parse, type and runtime errors are printed to stderr, and the tool exits with status 1.
 
 ## Tests
 
-Run the OUnit suite with:
+```bash
+./run_tests.sh
+```
+
+runs every program in `tests/` through the interpreter (`-i`) and through the compiler and `clang` (`-c`), and compares the results. Use `-i` or `-c` to run one mode only, and folder names to run part of the suite (`./run_tests.sh -c closures`); `--help` lists the options.
+
+| Folder | Contents |
+|---|---|
+| `tests/core/` | the core language without functions; `<name>.out` is the expected output |
+| `tests/closures/` | first-class functions and closures, including the examples from the assignment |
+| `tests/errors/` | programs that must fail; `<name>.err` is the expected start of the error message (e.g. `Type error`) |
+
+The OUnit unit tests (lexer, parser, interpreter) run with:
 
 ```bash
 dune runtest
 ```
 
-The course scaffold currently contains tests for later language features such as `if` and `let`, which are not yet implemented in the L0 frontend. Those tests are expected to remain pending while the language is developed incrementally.
+## Project structure
+
+```text
+bin/main.ml           command line: -i, -c, the REPL, error reporting
+lib/
+  lexer.mll           lexer
+  parser.mly          parser (ocamlyacc)
+  parser_utils.ml     parse_string and the unparser
+  ast.ml              untyped AST
+  ast_typed.ml        typed AST
+  typing.ml           type checker (synthesises the type of each node)
+  interpreter.ml      environment-based interpreter; functions evaluate to closures
+  environment.ml      scoped environments
+  symbols.ml          identifier interning
+  compiler_llvm.ml    compiles the typed AST to basic blocks of LLVM instructions
+  llvm_utils.ml       prints the LLVM IR module, including the result printing
+test/test_llang.ml    OUnit unit tests
+tests/                end-to-end test programs (see above)
+run_tests.sh          end-to-end test runner
+```
 
 ## Status
 
-This repository is a learning project and evolves alongside the course material. The current focus is the OCaml implementation; the Rust version will be revisited after the OCaml pipeline is complete.
+| Part | Status |
+|---|---|
+| Integers, booleans, arithmetic (`+ - * / %`, unary `-`), comparisons, `not` | interpreter and compiler |
+| Short-circuit `&&` and `\|\|` | interpreter and compiler |
+| `let`, `if` | interpreter and compiler |
+| `fun` and application (closures) | interpreter only; compilation not yet implemented |
+| Division by zero in compiled code | not yet detected (the interpreter reports it) |
+
+A Rust version of the starter code is kept on the `rust` branch.

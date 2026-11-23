@@ -1,0 +1,7 @@
+let c = fun (f : int -> int) -> fun (g : int -> int) ->
+  let y = 2 in fun (x : int) -> y * f (g x) in
+let i = let m = 2 in fun (x : int) -> x * m in
+let j = fun (x : int) -> x + 1 in
+let d = c i i in
+let e = c j j in
+d 2 + e 2
