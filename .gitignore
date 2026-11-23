@@ -14,6 +14,7 @@ _build/
 *.o
 *.a
 *.out
+!tests/**/*.out
 *.bc
 *.opam
 .opam/
@@ -24,12 +25,6 @@ _build/
 
 # dune-project generated lock dirs
 dune.lock/
-
-# ---- Rust / Cargo ----
-target/
-Cargo.lock
-**/*.rs.bk
-*.pdb
 
 # ---- Editors / OS ----
 .vscode/
