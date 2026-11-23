@@ -40,14 +40,33 @@ let preamble =
   "source_filename = \"llang.c\"\n"^
   "target datalayout = \"e-m:o-i64:64-i128:128-n32:64-S128-Fn32\"\n"^
   "target triple = \"arm64-apple-macosx26.0.0\"\n\n"^
-  "@.str = private unnamed_addr constant [4 x i8] c\"%d\\0A\\00\", align 1\n\n"^
+  "@.str = private unnamed_addr constant [4 x i8] c\"%d\\0A\\00\", align 1\n"^
+  "@.str.s = private unnamed_addr constant [4 x i8] c\"%s\\0A\\00\", align 1\n"^
+  "@.true = private unnamed_addr constant [5 x i8] c\"true\\00\", align 1\n"^
+  "@.false = private unnamed_addr constant [6 x i8] c\"false\\00\", align 1\n"^
+  "@.fun = private unnamed_addr constant [6 x i8] c\"<fun>\\00\", align 1\n\n"^
   "; Function Attrs: noinline nounwind optnone ssp uwtable(sync)\n"^
   "define i32 @main() #0 {\n"
 
-let epilogue ret t = 
-  let final = new_reg () in 
-  "  "^string_of_register final^" = call i32 (ptr, ...) @printf(ptr noundef @.str, "^string_of_llvm_type t^" noundef "^unparse_result ret^")"^
-  "\n  ret i32 0\n"^
+(* One printf call: [fmt] is the format global, [arg] the typed argument
+   (e.g. "i32 noundef %3" or "ptr noundef @.true"). *)
+let call_printf fmt arg =
+  let final = new_reg () in
+  "  "^string_of_register final^" = call i32 (ptr, ...) @printf(ptr noundef "^fmt^", "^arg^")\n"
+
+(* The printing code is chosen from the program's static type. *)
+let epilogue ret t =
+  let print_code =
+    match t with
+    | Ast.TInt -> call_printf "@.str" ("i32 noundef "^unparse_result ret)
+    | Ast.TBool ->
+        let s = new_reg () in
+        "  "^string_of_register s^" = select i1 "^unparse_result ret^", ptr @.true, ptr @.false\n"^
+        call_printf "@.str.s" ("ptr noundef "^string_of_register s)
+    | Ast.TArrow _ -> call_printf "@.str.s" "ptr noundef @.fun"
+  in
+  print_code^
+  "  ret i32 0\n"^
   "}\n\n"^
   "declare i32 @printf(ptr noundef, ...) #1\n"
 
@@ -59,11 +78,5 @@ let string_of_program ast =
       (List.fold_left (fun acc i -> acc^"  "^unparse_llvm_i i^"\n") "" b)
     ) "" (blocks@[(label, instrs)])
   in
-  preamble ^blocks_text^ epilogue ret (Ast_typed.type_of ast |> llvm_type_of)
+  preamble ^blocks_text^ epilogue ret (Ast_typed.type_of ast)
 
-
-let write_llvm_text_file ast filename =
-  let text = string_of_program ast in
-  let oc = open_out filename in
-  output_string oc text;
-  close_out oc

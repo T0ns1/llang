@@ -15,7 +15,6 @@ The OCaml implementation is the active version. A parallel Rust implementation i
 - Static type synthesis using a typed AST
 - Direct AST interpretation
 - LLVM text generation
-- LLVM bitcode generation through the OCaml LLVM API
 - Basic blocks, conditional branches, and phi nodes for short-circuit control flow
 
 ## Project structure
@@ -35,7 +34,6 @@ The main OCaml modules are under `llang/L0/ocaml/lib`:
 - `interpreter.ml`: direct evaluation
 - `compiler_llvm.ml`: internal LLVM-like instruction and basic-block generation
 - `llvm_utils.ml`: textual LLVM emission
-- `llvm_api_utils.ml`: LLVM module and bitcode construction
 
 ## Requirements
 
@@ -43,7 +41,7 @@ The OCaml version currently expects:
 
 - OCaml
 - Dune 3.23 or newer
-- LLVM 18 and its OCaml bindings
+- LLVM 18 (`clang`, to build the generated IR)
 - OUnit2
 
 An opam environment is recommended for installing the OCaml dependencies.
