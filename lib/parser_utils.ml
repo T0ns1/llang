@@ -38,10 +38,12 @@ let unparse_un_op = function
   | Neg -> "-"
   | Not -> "not "
 
-let rec string_of_btype = function
+(* Arrows associate to the right, so only an arrow argument needs parentheses. *)
+let rec string_of_type = function
   | TInt -> "int"
   | TBool -> "bool"
-  | TArrow (t1,t2) -> string_of_btype t1 ^" -> "^ string_of_btype t2
+  | TArrow ((TArrow _ as t1), t2) -> "(" ^ string_of_type t1 ^ ") -> " ^ string_of_type t2
+  | TArrow (t1, t2) -> string_of_type t1 ^ " -> " ^ string_of_type t2
 
 
 let rec unparse_ast = function
@@ -61,4 +63,4 @@ let rec unparse_ast = function
 
   | Id id -> string_of_symbol id
 
-  | Abs (id, t, e1) -> "fun ("^string_of_symbol id^":"^string_of_btype t^ ") -> "^unparse_ast e1
+  | Abs (id, t, e1) -> "fun ("^string_of_symbol id^":"^string_of_type t^ ") -> "^unparse_ast e1

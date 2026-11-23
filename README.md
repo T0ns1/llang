@@ -20,6 +20,7 @@ dune build
 | `llang -i` | interactive prompt: type check and evaluate each line |
 | `llang -c prog.lcd` | type check, then compile; write LLVM IR to stdout |
 | `llang -c` | same, reading the program from stdin |
+| `llang --cc [prog.lcd]` | debug: print the program after closure conversion (hoisted functions and their environments) |
 
 Run it through dune (`dune exec llang -- -i prog.lcd`) or directly as `_build/default/bin/main.exe`. To run a compiled program:
 

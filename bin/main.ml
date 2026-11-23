@@ -24,6 +24,11 @@ let compile src =
   let typed = type_synth ast in
   print_string (Llang.Llvm_utils.string_of_program typed)
 
+(* Debug: print the program after closure conversion. *)
+let closure_convert src =
+  let typed = type_synth (parse_string src) in
+  print_string (Llang.Closure_ir.string_of_program (Llang.Closure_conv.convert_program typed))
+
 (* ---------- Errors ---------- *)
 
 (* Exception -> Message mapping. Every message starts with its kind:
@@ -54,7 +59,7 @@ let repl () =
 (* ---------- Command line ---------- *)
 
 let usage () =
-  prerr_endline "usage: llang -i [file] | llang -c [file]";
+  prerr_endline "usage: llang -i [file] | llang -c [file] | llang --cc [file]";
   exit 2
 
 (* Batch mode: any error that escapes is reported once, here, and the
@@ -67,6 +72,8 @@ let () =
     | ["-i"]       -> repl ()
     | ["-c"; file] -> compile (read_file file)
     | ["-c"]       -> compile (read_stdin ())
+    | ["--cc"; file] -> closure_convert (read_file file)
+    | ["--cc"]       -> closure_convert (read_stdin ())
     | _            -> usage ()
   with e ->
     prerr_endline (message_of_exception e);

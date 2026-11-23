@@ -196,6 +196,66 @@ let test_compiles_modulo_to_signed_remainder _ =
   let llvm = Llang.Llvm_utils.string_of_program typed in
   assert_bool "expected an LLVM srem instruction" (contains_substring llvm "srem i32 10, 3")
 
+
+(* ---------- Free variables (closure conversion) ---------- *)
+
+(* The fun nodes of a well-typed program, outermost first. *)
+let rec funs_of e =
+  let open Llang.Ast_typed in
+  match e with
+  | Num _ | Bool _ | Id _ -> []
+  | BinOp (_, a, b, _) | Let (_, a, b, _) -> funs_of a @ funs_of b
+  | UnOp (_, a, _) -> funs_of a
+  | If (a, b, c, _) -> funs_of a @ funs_of b @ funs_of c
+  | Abs (_, _, body, _) -> e :: funs_of body
+
+let free_names_of_funs src =
+  parse_string src |> Llang.Typing.type_synth |> funs_of
+  |> List.map (fun f -> Llang.Closure_conv.free_vars f |> List.map (fun (x, _) -> string_of_symbol x))
+
+let test_fv_spec_compose _ =
+  let src =
+    "let c = fun (f : int -> int) -> fun (g : int -> int) -> \
+       let y = 2 in fun (x : int) -> y * f (g x) in \
+     let i = let m = 2 in fun (x : int) -> x * m in \
+     let j = fun (x : int) -> x + 1 in \
+     let d = c i i in let e = c j j in d 2 + e 2" in
+  assert_equal
+    [ []; [ "f" ]; [ "y"; "f"; "g" ]; [ "m" ]; [] ]
+    (free_names_of_funs src)
+
+let test_fv_no_duplicates _ =
+  assert_equal [ [ "a" ] ] (free_names_of_funs "let a = 1 in fun (x : int) -> a + a + x")
+
+let test_fv_shadowing _ =
+  assert_equal [ [] ] (free_names_of_funs "let x = 1 in fun (x : int) -> x");
+  assert_equal [ [ "x" ] ] (free_names_of_funs "let x = 1 in fun (y : int) -> let z = x in z + y")
+
+let test_fv_keeps_types _ =
+  let typed = parse_string "let b = true in fun (x : int) -> if b then x else 0" |> Llang.Typing.type_synth in
+  match funs_of typed with
+  | [ f ] -> assert_equal [ TBool ] (List.map snd (Llang.Closure_conv.free_vars f))
+  | _ -> assert_failure "expected one fun"
+
+
+let test_convert_spec_compose _ =
+  let src =
+    "let c = fun (f : int -> int) -> fun (g : int -> int) -> \
+       let y = 2 in fun (x : int) -> y * f (g x) in \
+     let i = let m = 2 in fun (x : int) -> x * m in \
+     let j = fun (x : int) -> x + 1 in \
+     let d = c i i in let e = c j j in d 2 + e 2" in
+  let p = parse_string src |> Llang.Typing.type_synth |> Llang.Closure_conv.convert_program in
+  let names vs = List.map (fun (x, _) -> string_of_symbol x) vs in
+  (* (id, param, env) of each hoisted fun: inner funs come first *)
+  assert_equal
+    [ (0, "x", [ "y"; "f"; "g" ]); (1, "g", [ "f" ]); (2, "f", []); (3, "x", [ "m" ]); (4, "x", []) ]
+    (List.map (fun (f : Llang.Closure_ir.fundef) -> (f.id, string_of_symbol (fst f.param), names f.env)) p.funs);
+  (* no fun is left inside expressions: main builds closures and applies them *)
+  match p.main with
+  | Llang.Closure_ir.Let (_, Llang.Closure_ir.MakeClosure (2, [], _), _, _) -> ()
+  | _ -> assert_failure "main should start with let c = closure f_2"
+
 let suite =
   "llang parser suite"
   >::: [
@@ -269,6 +329,11 @@ let suite =
          >:: test_evaluates_let_bound_value_in_if_condition;
          "unparses a comparison" >:: test_unparses_a_comparison;
          "unparses a let binding" >:: test_unparses_a_let_binding;
+         "free vars of the spec compose example" >:: test_fv_spec_compose;
+         "free vars have no duplicates" >:: test_fv_no_duplicates;
+         "free vars respect shadowing" >:: test_fv_shadowing;
+         "free vars keep their types" >:: test_fv_keeps_types;
+         "closure conversion of the spec compose example" >:: test_convert_spec_compose;
        ]
 
 let () = run_test_tt_main suite
