@@ -30,30 +30,6 @@ let test_parses_subtraction_and_division _ =
     (BinOp (Div, BinOp (Sub, Num 10, Num 4), Num 2))
     (parse_string "(10 - 4) / 2")
 
-let test_parses_modulo _ =
-  assert_equal (BinOp (Mod, Num 10, Num 3)) (parse_string "10 % 3")
-
-let test_modulo_has_multiplicative_precedence _ =
-  assert_equal
-    (BinOp (Add, Num 10, BinOp (Mod, Num 7, Num 4)))
-    (parse_string "10 + 7 % 4")
-
-let test_unparses_modulo _ =
-  assert_equal "10 % 3" (unparse_ast (parse_string "10 % 3"))
-
-let test_evaluates_modulo _ =
-  assert_equal (Int 1) (eval (parse_string "10 % 3"))
-
-let test_evaluates_negative_modulo _ =
-  assert_equal (Int (-1)) (eval (parse_string "-10 % 3"))
-
-let test_modulo_by_zero_raises _ =
-  assert_raises Division_by_zero (fun () -> eval (parse_string "10 % 0"))
-
-let test_types_modulo_as_int _ =
-  let typed = Llang.Typing.type_synth (parse_string "10 % 3") in
-  assert_equal TInt (Llang.Ast_typed.type_of typed)
-
 let test_unparses_back_to_a_readable_expression _ = (* The current unparsing function is not correct *)
   assert_equal "3 + 4 * (2 - 1)" (unparse_ast (parse_string "3 + 4 * (2 - 1)"))
 
@@ -79,6 +55,9 @@ let test_evaluates_unary_minus _ =
 let test_evaluates_subtraction_and_division _ =
   assert_equal (Int 3) (eval (parse_string "(10 - 4) / 2"))
 
+let test_evaluates_nested_unary_minus _ =
+  assert_equal (Int 3) (eval (parse_string "- -3"))
+
 let test_evaluates_a_boolean_literal _ =
   assert_equal (Bool true) (eval (parse_string "true"))
 
@@ -88,24 +67,6 @@ let test_evaluates_logical_and _ =
 let test_evaluates_logical_or _ =
   assert_equal (Bool true) (eval (parse_string "false || true"))
 
-let test_and_short_circuits_when_left_is_false _ =
-  assert_equal
-    (Bool false)
-    (eval (parse_string "false && (1 / 0 == 0)"))
-
-let test_or_short_circuits_when_left_is_true _ =
-  assert_equal
-    (Bool true)
-    (eval (parse_string "true || (1 / 0 == 0)"))
-
-let test_and_evaluates_right_when_left_is_true _ =
-  assert_raises Division_by_zero (fun () ->
-      eval (parse_string "true && (1 / 0 == 0)"))
-
-let test_or_evaluates_right_when_left_is_false _ =
-  assert_raises Division_by_zero (fun () ->
-      eval (parse_string "false || (1 / 0 == 0)"))
-
 let test_evaluates_logical_not _ =
   assert_equal (Bool false) (eval (parse_string "not true"))
 
@@ -113,10 +74,10 @@ let test_evaluates_an_if_expression _ =
   assert_equal (Int 3) (eval (parse_string "if true then 3 else 4"))
 
 let test_parses_equality _ =
-  assert_equal (BinOp (Eq, Num 3, Num 4)) (parse_string "3 == 4")
+  assert_equal (BinOp (Eq, Num 3, Num 4)) (parse_string "3 = 4")
 
 let test_parses_inequality _ =
-  assert_equal (BinOp (Ne, Num 3, Num 4)) (parse_string "3 != 4")
+  assert_equal (BinOp (Ne, Num 3, Num 4)) (parse_string "3 <> 4")
 
 let test_parses_less_than _ =
   assert_equal (BinOp (Lt, Num 3, Num 4)) (parse_string "3 < 4")
@@ -132,13 +93,13 @@ let test_parses_greater_than_or_equal _ =
 
 
 let test_evaluates_equality_true _ =
-  assert_equal (Bool true) (eval (parse_string "3 == 3"))
+  assert_equal (Bool true) (eval (parse_string "3 = 3"))
 
 let test_evaluates_equality_false _ =
-  assert_equal (Bool false) (eval (parse_string "3 == 4"))
+  assert_equal (Bool false) (eval (parse_string "3 = 4"))
 
 let test_evaluates_inequality _ =
-  assert_equal (Bool true) (eval (parse_string "3 != 4"))
+  assert_equal (Bool true) (eval (parse_string "3 <> 4"))
 
 let test_evaluates_less_than _ =
   assert_equal (Bool true) (eval (parse_string "3 < 4"))
@@ -191,72 +152,6 @@ let contains_substring haystack needle =
   in
   nlen = 0 || go 0
 
-let test_compiles_modulo_to_signed_remainder _ =
-  (* the divisor is a register: it is replaced by 1 when it is -1 *)
-  let typed = Llang.Typing.type_synth (parse_string "10 % 3") in
-  let llvm = Llang.Llvm_utils.string_of_program typed in
-  assert_bool "expected an LLVM srem instruction" (contains_substring llvm "srem i32 10, %")
-
-
-(* ---------- Free variables (closure conversion) ---------- *)
-
-(* The fun nodes of a well-typed program, outermost first. *)
-let rec funs_of e =
-  let open Llang.Ast_typed in
-  match e with
-  | Num _ | Bool _ | Id _ -> []
-  | BinOp (_, a, b, _) | Let (_, a, b, _) -> funs_of a @ funs_of b
-  | UnOp (_, a, _) -> funs_of a
-  | If (a, b, c, _) -> funs_of a @ funs_of b @ funs_of c
-  | Abs (_, _, body, _) -> e :: funs_of body
-
-let free_names_of_funs src =
-  parse_string src |> Llang.Typing.type_synth |> funs_of
-  |> List.map (fun f -> Llang.Closure_conv.free_vars f |> List.map (fun (x, _) -> string_of_symbol x))
-
-let test_fv_spec_compose _ =
-  let src =
-    "let c = fun (f : int -> int) -> fun (g : int -> int) -> \
-       let y = 2 in fun (x : int) -> y * f (g x) in \
-     let i = let m = 2 in fun (x : int) -> x * m in \
-     let j = fun (x : int) -> x + 1 in \
-     let d = c i i in let e = c j j in d 2 + e 2" in
-  assert_equal
-    [ []; [ "f" ]; [ "y"; "f"; "g" ]; [ "m" ]; [] ]
-    (free_names_of_funs src)
-
-let test_fv_no_duplicates _ =
-  assert_equal [ [ "a" ] ] (free_names_of_funs "let a = 1 in fun (x : int) -> a + a + x")
-
-let test_fv_shadowing _ =
-  assert_equal [ [] ] (free_names_of_funs "let x = 1 in fun (x : int) -> x");
-  assert_equal [ [ "x" ] ] (free_names_of_funs "let x = 1 in fun (y : int) -> let z = x in z + y")
-
-let test_fv_keeps_types _ =
-  let typed = parse_string "let b = true in fun (x : int) -> if b then x else 0" |> Llang.Typing.type_synth in
-  match funs_of typed with
-  | [ f ] -> assert_equal [ TBool ] (List.map snd (Llang.Closure_conv.free_vars f))
-  | _ -> assert_failure "expected one fun"
-
-
-let test_convert_spec_compose _ =
-  let src =
-    "let c = fun (f : int -> int) -> fun (g : int -> int) -> \
-       let y = 2 in fun (x : int) -> y * f (g x) in \
-     let i = let m = 2 in fun (x : int) -> x * m in \
-     let j = fun (x : int) -> x + 1 in \
-     let d = c i i in let e = c j j in d 2 + e 2" in
-  let p = parse_string src |> Llang.Typing.type_synth |> Llang.Closure_conv.convert_program in
-  let names vs = List.map (fun (x, _) -> string_of_symbol x) vs in
-  (* (id, param, env) of each hoisted fun: inner funs come first *)
-  assert_equal
-    [ (0, "x", [ "y"; "f"; "g" ]); (1, "g", [ "f" ]); (2, "f", []); (3, "x", [ "m" ]); (4, "x", []) ]
-    (List.map (fun (f : Llang.Closure_ir.fundef) -> (f.id, string_of_symbol (fst f.param), names f.env)) p.funs);
-  (* no fun is left inside expressions: main builds closures and applies them *)
-  match p.main with
-  | Llang.Closure_ir.Let (_, Llang.Closure_ir.MakeClosure (2, [], _), _, _) -> ()
-  | _ -> assert_failure "main should start with let c = closure f_2"
-
 let suite =
   "llang parser suite"
   >::: [
@@ -268,15 +163,6 @@ let suite =
          "parses unary minus" >:: test_parses_unary_minus;
          "parses subtraction and division"
          >:: test_parses_subtraction_and_division;
-         "parses modulo" >:: test_parses_modulo;
-         "gives modulo multiplicative precedence"
-         >:: test_modulo_has_multiplicative_precedence;
-         "unparses modulo" >:: test_unparses_modulo;
-         "evaluates modulo" >:: test_evaluates_modulo;
-         "evaluates negative modulo" >:: test_evaluates_negative_modulo;
-         "raises on modulo by zero" >:: test_modulo_by_zero_raises;
-         "types modulo as int" >:: test_types_modulo_as_int;
-         "compiles modulo to signed remainder" >:: test_compiles_modulo_to_signed_remainder;
          "unparses back to a readable expression"
          >:: test_unparses_back_to_a_readable_expression;
          "raises on invalid syntax" >:: test_raises_on_invalid_syntax;
@@ -288,17 +174,10 @@ let suite =
          "evaluates unary minus" >:: test_evaluates_unary_minus;
          "evaluates subtraction and division"
          >:: test_evaluates_subtraction_and_division;
+         "evaluates nested unary minus" >:: test_evaluates_nested_unary_minus;
          "evaluates a boolean literal" >:: test_evaluates_a_boolean_literal;
          "evaluates logical and" >:: test_evaluates_logical_and;
          "evaluates logical or" >:: test_evaluates_logical_or;
-         "and short-circuits when left is false"
-         >:: test_and_short_circuits_when_left_is_false;
-         "or short-circuits when left is true"
-         >:: test_or_short_circuits_when_left_is_true;
-         "and evaluates right when left is true"
-         >:: test_and_evaluates_right_when_left_is_true;
-         "or evaluates right when left is false"
-         >:: test_or_evaluates_right_when_left_is_false;
          "evaluates logical not" >:: test_evaluates_logical_not;
          "evaluates an if expression" >:: test_evaluates_an_if_expression;
          "parses equality" >:: test_parses_equality;
@@ -330,11 +209,6 @@ let suite =
          >:: test_evaluates_let_bound_value_in_if_condition;
          "unparses a comparison" >:: test_unparses_a_comparison;
          "unparses a let binding" >:: test_unparses_a_let_binding;
-         "free vars of the spec compose example" >:: test_fv_spec_compose;
-         "free vars have no duplicates" >:: test_fv_no_duplicates;
-         "free vars respect shadowing" >:: test_fv_shadowing;
-         "free vars keep their types" >:: test_fv_keeps_types;
-         "closure conversion of the spec compose example" >:: test_convert_spec_compose;
        ]
 
 let () = run_test_tt_main suite

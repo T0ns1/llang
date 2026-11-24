@@ -7,9 +7,9 @@ open Symbols
 %}
 
 %token <int> INT
-%token PLUS MINUS TIMES DIV MOD LPAREN RPAREN EOF
+%token PLUS MINUS TIMES DIV LPAREN RPAREN EOF
 %token TRUE FALSE AND OR NOT 
-%token EQ EQEQ NE LT LE GT GE
+%token EQ NE LT LE GT GE
 %token IF THEN ELSE
 %token <string> ID
 %token LET IN
@@ -24,9 +24,6 @@ main:
   cond EOF                  { $1 }
 
 cond:
-  | FUN LPAREN ID COLON l_type RPAREN ARROW cond { Abs ((new_symbol $3),$5,$8) }
-  | LET ID EQ cond IN cond       { Let ((new_symbol $2), $4, $6) }
-  | IF cond THEN cond ELSE cond  { If ($2, $4, $6) }
   | disj                         { $1 }
 
 disj:
@@ -34,11 +31,15 @@ disj:
   | conj                         { $1 }
 
 conj:
-  | conj AND comp           { BinOp (And, $1, $3) }
+  | conj AND bterm          { BinOp (And, $1, $3) }
+  | bterm                   { $1 }
+
+bterm:
+  | NOT bterm               { UnOp (Not, $2) }
   | comp                    { $1 }
 
 comp:
-  | comp EQEQ expr          { BinOp (Eq, $1, $3) }
+  | comp EQ  expr           { BinOp (Eq, $1, $3) }
   | comp NE  expr           { BinOp (Ne, $1, $3) }
   | comp LT  expr           { BinOp (Lt, $1, $3) }
   | comp LE  expr           { BinOp (Le, $1, $3) }
@@ -54,28 +55,16 @@ expr:
 term:
   | term TIMES call         { BinOp (Mul, $1, $3) }
   | term DIV   call         { BinOp (Div, $1, $3) }
-  | term MOD   call         { BinOp (Mod, $1, $3) }
   | call                    { $1 }
 ;
 
 call: 
   | MINUS factor            { UnOp (Neg, $2) }
-  | NOT factor              { UnOp (Not, $2) }   (* like application: not f x = (not f) x *)
-  | call factor             { BinOp(App,$1,$2) }
   | factor                  { $1 }
 
 factor:
   | INT                     { Num $1 }
   | TRUE                    { Bool true }
   | FALSE                   { Bool false }
-  | ID                      { Id (new_symbol $1) }
   | LPAREN cond RPAREN      { $2 }
-
-l_type: 
-  | btype ARROW l_type        { TArrow ($1,$3)}
-  | btype                   { $1 }
-
-btype:
-  | TINT                    { TInt }
-  | TBOOL                   { TBool }
 

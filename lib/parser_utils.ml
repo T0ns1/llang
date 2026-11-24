@@ -22,28 +22,22 @@ let unparse_bin_op = function
   | Sub -> "-"
   | Mul -> "*"
   | Div -> "/"
-  | Mod -> "%"
   | And -> "&&"
   | Or -> "||"
-  | Eq -> "=="
-  | Ne -> "!="
+  | Eq -> "="
+  | Ne -> "<>"
   | Lt -> "<"
   | Le -> "<="
   | Gt -> ">"
   | Ge -> ">="
-  | App -> " "
-
 
 let unparse_un_op = function
   | Neg -> "-"
   | Not -> "not "
 
-(* Arrows associate to the right, so only an arrow argument needs parentheses. *)
-let rec string_of_type = function
+let rec string_of_btype = function
   | TInt -> "int"
   | TBool -> "bool"
-  | TArrow ((TArrow _ as t1), t2) -> "(" ^ string_of_type t1 ^ ") -> " ^ string_of_type t2
-  | TArrow (t1, t2) -> string_of_type t1 ^ " -> " ^ string_of_type t2
 
 
 let rec unparse_ast = function
@@ -54,13 +48,3 @@ let rec unparse_ast = function
   | BinOp (op, e1, e2) -> (unparse_ast e1 ^ " " ^ unparse_bin_op op ^ " " ^ unparse_ast e2)
 
   | UnOp (op, e1) -> (unparse_un_op op ^ unparse_ast e1)
-
-  | If (cond, then_branch, else_branch) ->
-      "if " ^ unparse_ast cond ^ " then " ^ unparse_ast then_branch ^ " else " ^ unparse_ast else_branch
-
-  | Let (id, e1, e2) ->
-      "let " ^ (string_of_symbol id) ^ " = " ^ unparse_ast e1 ^ " in " ^ unparse_ast e2
-
-  | Id id -> string_of_symbol id
-
-  | Abs (id, t, e1) -> "fun ("^string_of_symbol id^":"^string_of_type t^ ") -> "^unparse_ast e1

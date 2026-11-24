@@ -14,10 +14,9 @@
           interpreter 
           typing           
           compiler_llvm
+          llvm_api_utils
           llvm_utils
-          closure_ir
-          closure_conv
           environment
           symbols
           )
-)
+ (libraries llvm llvm.analysis llvm.bitwriter))
