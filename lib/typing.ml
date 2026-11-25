@@ -4,7 +4,7 @@ open Environment
 
 let type_bin_op op t1 t2 =
   match op, t1, t2 with
-  | (Add | Sub | Mul | Div), TInt, TInt -> TInt
+  | (Add | Sub | Mul | Div | Mod), TInt, TInt -> TInt
   | (And | Or), TBool, TBool -> TBool
   | (Eq | Ne), TInt, TInt -> TBool
   | (Eq | Ne), TBool, TBool -> TBool
@@ -22,11 +22,17 @@ let rec type_synth env = function
 
   | Ast.Bool b -> Ast_typed.Bool b
 
+  | Ast.Id sym -> failwith "Type synthesis for Id is not implemented yet"
+
   | Ast.BinOp (op, e1, e2) -> 
       let et1 = type_synth env e1 in 
       let et2 = type_synth env e2 in 
       Ast_typed.BinOp (op, et1, et2, type_bin_op op (type_of et1) (type_of et2))
 
   | Ast.UnOp (op, e) -> let e = type_synth env e in Ast_typed.UnOp (op, e, type_un_op op (type_of e))
+
+  | Ast.Let (sym, e1, e2) -> failwith "Type synthesis for Let is not implemented yet"
+
+  | Ast.If (e1, e2, e3) -> failwith "Type synthesis for If is not implemented yet"
 
 let type_synth ast = type_synth empty ast (* overrides the previous definition *)

@@ -11,6 +11,10 @@ let parse_lexbuf lb =
       let pos = lb.Lexing.lex_curr_p in
       let col = pos.pos_cnum - pos.pos_bol in
       failwith (Printf.sprintf "Parse error at line %d, column %d" pos.pos_lnum col)
+  | Lexer.Lexing_error msg ->
+      let pos = lb.Lexing.lex_curr_p in
+      let col = pos.pos_cnum - pos.pos_bol in
+      failwith (Printf.sprintf "Lexing error at line %d, column %d: %s" pos.pos_lnum col msg)
 
 let parse_string s =
   Lexing.from_string s |> parse_lexbuf
@@ -22,10 +26,11 @@ let unparse_bin_op = function
   | Sub -> "-"
   | Mul -> "*"
   | Div -> "/"
+  | Mod -> "%"
   | And -> "&&"
   | Or -> "||"
-  | Eq -> "="
-  | Ne -> "<>"
+  | Eq -> "=="
+  | Ne -> "!="
   | Lt -> "<"
   | Le -> "<="
   | Gt -> ">"
@@ -45,6 +50,12 @@ let rec unparse_ast = function
 
   | Bool b -> string_of_bool b
 
-  | BinOp (op, e1, e2) -> (unparse_ast e1 ^ " " ^ unparse_bin_op op ^ " " ^ unparse_ast e2)
+  | Id sym -> string_of_symbol sym
 
-  | UnOp (op, e1) -> (unparse_un_op op ^ unparse_ast e1)
+  | BinOp (op, e1, e2) -> ("(" ^ unparse_ast e1 ^ " " ^ unparse_bin_op op ^ " " ^ unparse_ast e2 ^ ")")
+
+  | UnOp (op, e1) -> ("(" ^ unparse_un_op op ^ unparse_ast e1 ^ ")")
+
+  | Let (sym, e1, e2) -> ("(let " ^ string_of_symbol sym ^ " = " ^ unparse_ast e1 ^ " in " ^ unparse_ast e2 ^ ")")
+
+  | If (e1, e2, e3) -> ("(if " ^ unparse_ast e1 ^ " then " ^ unparse_ast e2 ^ " else " ^ unparse_ast e3 ^ ")")

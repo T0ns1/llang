@@ -35,9 +35,15 @@ let rec eval env = function
 
   | Bool b -> value_from_bool b
 
+  | Id id -> failwith "Id evaluation is not implemented yet"
+
   | BinOp (op, e1, e2) -> native_eval_bin_op op (eval env e1) (eval env e2)
 
   | UnOp (op, e) -> native_eval_un_op op (eval env e)
+
+  | Let (id, e1, e2) -> failwith "Let evaluation is not implemented yet"
+
+  | If (e1, e2, e3) -> failwith "If evaluation is not implemented yet"
   
 and native_eval_bin_op op v1 v2 =
   match op with
@@ -45,6 +51,7 @@ and native_eval_bin_op op v1 v2 =
   | Sub -> value_from_int (int_from_value v1 - int_from_value v2)
   | Mul -> value_from_int (int_from_value v1 * int_from_value v2)
   | Div -> value_from_int (int_from_value v1 / int_from_value v2)
+  | Mod -> value_from_int (int_from_value v1 mod int_from_value v2)
   | And -> value_from_bool (bool_from_value v1 && bool_from_value v2)
   | Or -> value_from_bool (bool_from_value v1 || bool_from_value v2)
   | Eq -> value_from_bool (v1 = v2)

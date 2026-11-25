@@ -6,8 +6,7 @@ let resolver:(string list) ref = ref [] (* this should be a direct access *)
 
 let get_id sym = List.nth !resolver sym
 
-let get_symbol id = 
-  print_endline @@ "Searching for "^id;
+let get_symbol id =
   Hashtbl.find symbols id
 
 
@@ -17,8 +16,7 @@ let next_symbol () = last_symbol:=!last_symbol+1; (!last_symbol-1)
 
 let new_symbol id = 
   match Hashtbl.find_opt symbols id with 
-  | None -> 
-    print_endline @@ "Added "^id;
+  | None ->
     let sym = next_symbol () in
     resolver := (!resolver)@[id];
     Hashtbl.add symbols id sym;

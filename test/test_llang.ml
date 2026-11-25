@@ -30,8 +30,10 @@ let test_parses_subtraction_and_division _ =
     (BinOp (Div, BinOp (Sub, Num 10, Num 4), Num 2))
     (parse_string "(10 - 4) / 2")
 
-let test_unparses_back_to_a_readable_expression _ = (* The current unparsing function is not correct *)
-  assert_equal "3 + 4 * (2 - 1)" (unparse_ast (parse_string "3 + 4 * (2 - 1)"))
+(* unparse_ast puts parentheses around every operation, so the printed form
+   shows exactly how the parser grouped the program. *)
+let test_unparses_back_to_a_readable_expression _ =
+  assert_equal ~printer:Fun.id "(3 + (4 * (2 - 1)))" (unparse_ast (parse_string "3 + 4 * (2 - 1)"))
 
 let test_raises_on_invalid_syntax _ =
   assert_raises (Failure "Parse error at line 1, column 3") (fun () ->
@@ -74,10 +76,10 @@ let test_evaluates_an_if_expression _ =
   assert_equal (Int 3) (eval (parse_string "if true then 3 else 4"))
 
 let test_parses_equality _ =
-  assert_equal (BinOp (Eq, Num 3, Num 4)) (parse_string "3 = 4")
+  assert_equal (BinOp (Eq, Num 3, Num 4)) (parse_string "3 == 4")
 
 let test_parses_inequality _ =
-  assert_equal (BinOp (Ne, Num 3, Num 4)) (parse_string "3 <> 4")
+  assert_equal (BinOp (Ne, Num 3, Num 4)) (parse_string "3 != 4")
 
 let test_parses_less_than _ =
   assert_equal (BinOp (Lt, Num 3, Num 4)) (parse_string "3 < 4")
@@ -93,13 +95,13 @@ let test_parses_greater_than_or_equal _ =
 
 
 let test_evaluates_equality_true _ =
-  assert_equal (Bool true) (eval (parse_string "3 = 3"))
+  assert_equal (Bool true) (eval (parse_string "3 == 3"))
 
 let test_evaluates_equality_false _ =
-  assert_equal (Bool false) (eval (parse_string "3 = 4"))
+  assert_equal (Bool false) (eval (parse_string "3 == 4"))
 
 let test_evaluates_inequality _ =
-  assert_equal (Bool true) (eval (parse_string "3 <> 4"))
+  assert_equal (Bool true) (eval (parse_string "3 != 4"))
 
 let test_evaluates_less_than _ =
   assert_equal (Bool true) (eval (parse_string "3 < 4"))
@@ -140,10 +142,109 @@ let test_evaluates_let_bound_value_in_if_condition _ =
     (eval (parse_string "let x = true in if x then 1 else 2"))
 
 let test_unparses_a_comparison _ =
-  assert_equal "3 < 4" (unparse_ast (parse_string "3 < 4"))
+  assert_equal ~printer:Fun.id "(3 < 4)" (unparse_ast (parse_string "3 < 4"))
 
 let test_unparses_a_let_binding _ =
-  assert_equal "let x = 3 in x" (unparse_ast (parse_string "let x = 3 in x"))
+  assert_equal ~printer:Fun.id "(let x = 3 in x)" (unparse_ast (parse_string "let x = 3 in x"))
+
+(* ---------- Module 2: front end ---------- *)
+
+(* true when f raises Failure with a message starting with prefix *)
+let fails_with_prefix prefix f =
+  match f () with
+  | _ -> false
+  | exception Failure msg ->
+      String.length msg >= String.length prefix
+      && String.sub msg 0 (String.length prefix) = prefix
+
+let assert_parse_error s =
+  assert_bool ("expected a parse error for: " ^ s)
+    (fails_with_prefix "Parse error" (fun () -> parse_string s))
+
+let x = new_symbol "x"
+
+let test_parses_modulo_like_times _ =
+  assert_equal
+    (BinOp (Add, Num 1, BinOp (Mod, BinOp (Mul, Num 2, Num 3), Num 4)))
+    (parse_string "1 + 2 * 3 % 4")
+
+let test_comparisons_are_non_associative _ =
+  assert_parse_error "1 < 2 < 3";
+  assert_parse_error "1 == 2 == 3"
+
+let test_comparison_binds_tighter_than_and _ =
+  assert_equal
+    (BinOp (And, BinOp (Lt, Num 1, Num 2), Bool true))
+    (parse_string "1 < 2 && true")
+
+let test_and_binds_tighter_than_or _ =
+  assert_equal
+    (BinOp (Or, Bool true, BinOp (And, Bool false, Bool true)))
+    (parse_string "true || false && true")
+
+let test_not_binds_tighter_than_equality _ =
+  assert_equal
+    (BinOp (Eq, UnOp (Not, Bool true), Bool false))
+    (parse_string "not true == false")
+
+let test_parses_repeated_prefix_operators _ =
+  assert_equal (UnOp (Neg, UnOp (Neg, Num 3))) (parse_string "- -3");
+  assert_equal (UnOp (Not, UnOp (Not, Bool true))) (parse_string "not not true")
+
+let test_not_needs_no_space _ =
+  assert_equal (UnOp (Not, Bool true)) (parse_string "not(true)")
+
+let test_keyword_prefixes_are_identifiers _ =
+  assert_equal (Id (new_symbol "iffy")) (parse_string "iffy");
+  assert_equal (Id (new_symbol "notx")) (parse_string "notx")
+
+let test_parses_a_let _ =
+  assert_equal (Let (x, Num 1, BinOp (Add, Id x, Num 1))) (parse_string "let x = 1 in x + 1")
+
+let test_let_body_extends_right _ =
+  assert_equal
+    (Let (x, Num 1, BinOp (And, BinOp (Gt, Id x, Num 0), BinOp (Lt, Id x, Num 10))))
+    (parse_string "let x = 1 in x > 0 && x < 10")
+
+let test_let_in_parentheses _ =
+  assert_equal (BinOp (Add, Let (x, Num 1, Id x), Num 1)) (parse_string "(let x = 1 in x) + 1")
+
+let test_let_rhs_can_be_an_if _ =
+  assert_equal
+    (Let (x, If (Bool true, Num 1, Num 2), Id x))
+    (parse_string "let x = if true then 1 else 2 in x")
+
+let test_if_else_branch_extends_right _ =
+  assert_equal
+    (If (Bool true, Num 1, BinOp (Add, Num 2, Num 3)))
+    (parse_string "if true then 1 else 2 + 3")
+
+let test_old_syntax_is_rejected _ =
+  assert_parse_error "3 = 4";
+  assert_parse_error "3 <> 4"
+
+let test_raises_on_bad_character _ =
+  assert_bool "expected a lexing error"
+    (fails_with_prefix "Lexing error" (fun () -> parse_string "3 @ 4"))
+
+(* parse (unparse (parse s)) gives the same tree as parse s *)
+let test_unparse_round_trips _ =
+  List.iter
+    (fun s ->
+      let tree = parse_string s in
+      assert_equal ~msg:s tree (parse_string (unparse_ast tree)))
+    [ "(1 + 2) * 3"; "-(3 - 5)"; "1 - (2 - 3)"; "(let x = 1 in x) + 1";
+      "(if true then 1 else 2) * 3"; "not (1 < 2)"; "- -3"; "not not true";
+      "let x = 1 in let y = x in x + y"; "if a then b else c + 1";
+      "not true == false"; "1 + 2 * 3 % 4"; "true || false && true" ]
+
+let test_evaluates_modulo _ =
+  assert_equal (Int 1) (eval (parse_string "7 % 3"));
+  (* truncates toward zero, like LLVM's srem *)
+  assert_equal (Int (-1)) (eval (parse_string "-7 % 2"))
+
+let test_types_modulo _ =
+  assert_equal TInt (Llang.Ast_typed.type_of (Llang.Typing.type_synth (parse_string "7 % 3")))
 
 let contains_substring haystack needle =
   let hlen = String.length haystack and nlen = String.length needle in
@@ -209,6 +310,24 @@ let suite =
          >:: test_evaluates_let_bound_value_in_if_condition;
          "unparses a comparison" >:: test_unparses_a_comparison;
          "unparses a let binding" >:: test_unparses_a_let_binding;
+         "parses % at the level of *" >:: test_parses_modulo_like_times;
+         "comparisons are non-associative" >:: test_comparisons_are_non_associative;
+         "comparison binds tighter than &&" >:: test_comparison_binds_tighter_than_and;
+         "&& binds tighter than ||" >:: test_and_binds_tighter_than_or;
+         "not binds tighter than ==" >:: test_not_binds_tighter_than_equality;
+         "parses repeated prefix operators" >:: test_parses_repeated_prefix_operators;
+         "not needs no space" >:: test_not_needs_no_space;
+         "keyword prefixes are identifiers" >:: test_keyword_prefixes_are_identifiers;
+         "parses a let" >:: test_parses_a_let;
+         "let body extends right" >:: test_let_body_extends_right;
+         "let in parentheses" >:: test_let_in_parentheses;
+         "let right-hand side can be an if" >:: test_let_rhs_can_be_an_if;
+         "if else-branch extends right" >:: test_if_else_branch_extends_right;
+         "old = and <> syntax is rejected" >:: test_old_syntax_is_rejected;
+         "raises a lexing error on a bad character" >:: test_raises_on_bad_character;
+         "unparse round-trips" >:: test_unparse_round_trips;
+         "evaluates modulo" >:: test_evaluates_modulo;
+         "types modulo" >:: test_types_modulo;
        ]
 
 let () = run_test_tt_main suite

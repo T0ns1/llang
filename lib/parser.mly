@@ -7,12 +7,12 @@ open Symbols
 %}
 
 %token <int> INT
-%token PLUS MINUS TIMES DIV LPAREN RPAREN EOF
+%token PLUS MINUS TIMES DIV MOD LPAREN RPAREN EOF
 %token TRUE FALSE AND OR NOT 
 %token EQ NE LT LE GT GE
 %token IF THEN ELSE
 %token <string> ID
-%token LET IN
+%token LET ASSIGN IN
 %token FUN ARROW
 %token TINT TBOOL COLON
 
@@ -25,26 +25,24 @@ main:
 
 cond:
   | disj                         { $1 }
+  | LET ID ASSIGN cond IN cond { Let ((new_symbol $2), $4, $6) }
+  | IF cond THEN cond ELSE cond  { If ($2, $4, $6) } 
 
 disj:
   | disj OR conj                 { BinOp (Or, $1, $3) }
   | conj                         { $1 }
 
 conj:
-  | conj AND bterm          { BinOp (And, $1, $3) }
-  | bterm                   { $1 }
-
-bterm:
-  | NOT bterm               { UnOp (Not, $2) }
+  | conj AND comp          { BinOp (And, $1, $3) }
   | comp                    { $1 }
 
 comp:
-  | comp EQ  expr           { BinOp (Eq, $1, $3) }
-  | comp NE  expr           { BinOp (Ne, $1, $3) }
-  | comp LT  expr           { BinOp (Lt, $1, $3) }
-  | comp LE  expr           { BinOp (Le, $1, $3) }
-  | comp GT  expr           { BinOp (Gt, $1, $3) }
-  | comp GE  expr           { BinOp (Ge, $1, $3) }
+  | expr EQ  expr           { BinOp (Eq, $1, $3) }
+  | expr NE  expr           { BinOp (Ne, $1, $3) }
+  | expr LT  expr           { BinOp (Lt, $1, $3) }
+  | expr LE  expr           { BinOp (Le, $1, $3) }
+  | expr GT  expr           { BinOp (Gt, $1, $3) }
+  | expr GE  expr           { BinOp (Ge, $1, $3) }
   | expr                    { $1 }
 
 expr:
@@ -55,15 +53,17 @@ expr:
 term:
   | term TIMES call         { BinOp (Mul, $1, $3) }
   | term DIV   call         { BinOp (Div, $1, $3) }
+  | term MOD   call         { BinOp (Mod, $1, $3) }
   | call                    { $1 }
-;
 
 call: 
-  | MINUS factor            { UnOp (Neg, $2) }
+  | MINUS call            { UnOp (Neg, $2) }
+  | NOT call               { UnOp (Not, $2) }
   | factor                  { $1 }
 
 factor:
   | INT                     { Num $1 }
+  | ID                      { Id (new_symbol $1) }
   | TRUE                    { Bool true }
   | FALSE                   { Bool false }
   | LPAREN cond RPAREN      { $2 }

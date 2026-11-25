@@ -4,12 +4,14 @@
 }
 
 rule read = parse
-  | [' ' '\t' '\r' '\n']     { read lexbuf }       (* skip whitespace *)
+  | [' ' '\t' '\r' ]         { read lexbuf }       (* skip whitespace *)
+  | "\n"                     { Lexing.new_line lexbuf; read lexbuf }       (* newline*)
   | ['0'-'9']+ as i          { INT (int_of_string i) }
   | '+'                      { PLUS }
   | '-'                      { MINUS }
   | '*'                      { TIMES }
   | '/'                      { DIV }
+  | '%'                      { MOD }
   | '('                      { LPAREN }
   | ')'                      { RPAREN }
 
@@ -17,20 +19,21 @@ rule read = parse
   | "false"                  { FALSE }
   | "&&"                     { AND }
   | "||"                     { OR }
-  | "not "                   { NOT }
+  | "not"                    { NOT }
 
   | "if"                     { IF }
   | "then"                   { THEN }
   | "else"                   { ELSE }
 
-  | "="                      { EQ }
+  | "=="                      { EQ }
   | "<"                      { LT }
   | ">"                      { GT }
   | "<="                     { LE }
   | ">="                     { GE }
-  | "<>"                     { NE }
+  | "!="                     { NE }
 
   | "let"                    { LET }
+  | "="                      { ASSIGN }
   | "in"                     { IN }
 
   | "fun"                    { FUN }

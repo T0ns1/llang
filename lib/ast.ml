@@ -11,6 +11,7 @@ type bin_op =
   | Sub
   | Mul
   | Div
+  | Mod
   | And
   | Or
   | Eq
@@ -27,8 +28,11 @@ type un_op =
 type ast = 
   | Num of int
   | Bool of bool
+  | Id of symbol
   | BinOp of bin_op * ast * ast
   | UnOp of un_op * ast
+  | Let of symbol * ast * ast
+  | If of ast * ast * ast
 
 
 
