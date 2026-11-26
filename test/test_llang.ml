@@ -246,6 +246,50 @@ let test_evaluates_modulo _ =
 let test_types_modulo _ =
   assert_equal TInt (Llang.Ast_typed.type_of (Llang.Typing.type_synth (parse_string "7 % 3")))
 
+(* ---------- Module 3: interpreter and scope ---------- *)
+
+let eval_s s = eval (parse_string s)
+
+let test_and_short_circuits _ =
+  assert_equal (Bool false) (eval_s "false && 1 / 0 == 0")
+
+let test_or_short_circuits _ =
+  assert_equal (Bool true) (eval_s "true || 1 / 0 == 0")
+
+let test_and_evaluates_right_when_needed _ =
+  assert_raises Division_by_zero (fun () -> eval_s "true && 1 / 0 == 0")
+
+let test_or_evaluates_right_when_needed _ =
+  assert_raises Division_by_zero (fun () -> eval_s "false || 1 / 0 == 0")
+
+let test_and_or_truth_tables _ =
+  List.iter
+    (fun (s, b) -> assert_equal ~msg:s (Bool b) (eval_s s))
+    [ ("true && true", true); ("true && false", false);
+      ("false && true", false); ("false && false", false);
+      ("true || true", true); ("true || false", true);
+      ("false || true", true); ("false || false", false) ]
+
+let test_if_skips_unused_branch _ =
+  assert_equal (Int 1) (eval_s "if true then 1 else 1 / 0");
+  assert_equal (Int 2) (eval_s "if false then 1 / 0 else 2")
+
+let test_let_rhs_sees_outer_binding _ =
+  (* the warm-up program: y = 2, then x = 20, so x + y = 22 *)
+  assert_equal (Int 22)
+    (eval_s "let x = 1 in let y = x + 1 in let x = y * 10 in x + y")
+
+let test_if_in_let_in_if _ =
+  assert_equal (Int 30)
+    (eval_s "if 1 < 2 then let x = 10 in if x > 5 then x * 3 else 0 else 1")
+
+let test_operands_evaluate_left_to_right _ =
+  (* both operands fail; the left one must be reported *)
+  assert_raises (Failure "Unbound identifier: y") (fun () -> eval_s "y + 1 / 0")
+
+let test_unbound_identifier_fails _ =
+  assert_raises (Failure "Unbound identifier: zz") (fun () -> eval_s "zz")
+
 let contains_substring haystack needle =
   let hlen = String.length haystack and nlen = String.length needle in
   let rec go i =
@@ -328,6 +372,16 @@ let suite =
          "unparse round-trips" >:: test_unparse_round_trips;
          "evaluates modulo" >:: test_evaluates_modulo;
          "types modulo" >:: test_types_modulo;
+         "&& short-circuits" >:: test_and_short_circuits;
+         "|| short-circuits" >:: test_or_short_circuits;
+         "&& evaluates the right side when needed" >:: test_and_evaluates_right_when_needed;
+         "|| evaluates the right side when needed" >:: test_or_evaluates_right_when_needed;
+         "&& and || truth tables" >:: test_and_or_truth_tables;
+         "if skips the unused branch" >:: test_if_skips_unused_branch;
+         "let right-hand side sees the outer binding" >:: test_let_rhs_sees_outer_binding;
+         "if in let in if" >:: test_if_in_let_in_if;
+         "operands evaluate left to right" >:: test_operands_evaluate_left_to_right;
+         "unbound identifier fails" >:: test_unbound_identifier_fails;
        ]
 
 let () = run_test_tt_main suite
