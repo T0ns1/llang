@@ -297,6 +297,44 @@ let contains_substring haystack needle =
   in
   nlen = 0 || go 0
 
+
+(* ---------- Module 4: types ---------- *)
+
+let type_s s = Llang.Ast_typed.type_of (Llang.Typing.type_synth (parse_string s))
+
+(* the type checker fails with exactly this message (main.ml adds "Type error: ") *)
+let assert_type_error msg s =
+  assert_raises ~msg:s (Failure msg) (fun () -> type_s s)
+
+let test_types_warmup_programs _ =
+  List.iter
+    (fun (s, t) -> assert_equal ~msg:s t (type_s s))
+    [ ("let x = 1 in if x < 2 then x else 0", TInt);
+      ("if true then 1 else 1 / 0", TInt);
+      ("let x = 1 in let x = true in x", TBool);
+      ("(if true then 1 else 2) < 3", TBool);
+      ("true == (1 < 2)", TBool) ]
+
+let test_let_shadowing_changes_type _ =
+  assert_equal TBool (type_s "let x = 1 in let x = x < 2 in x");
+  assert_equal TInt (type_s "let x = true in (let x = 1 in x) + (if x then 1 else 0)")
+
+let test_type_errors_have_messages _ =
+  assert_type_error "if condition must be bool, found int" "if 1 then 2 else 3";
+  assert_type_error "if branches have different types: int and bool" "if true then 1 else false";
+  assert_type_error "Unbound identifier: x" "x";
+  assert_type_error "Unbound identifier: x" "(let x = 1 in x) + x";
+  assert_type_error "+ expects int and int, found bool and int" "let x = true in x + 1";
+  assert_type_error "&& expects bool and bool, found bool and int" "true && 1";
+  assert_type_error "< expects int and int, found bool and bool" "true < false";
+  assert_type_error "== expects two ints or two bools, found int and bool" "1 == true";
+  assert_type_error "- expects int, found bool" "-true";
+  assert_type_error "not expects bool, found int" "not 1"
+
+let test_type_checker_checks_unused_branch _ =
+  (* never evaluated, still rejected: the check is static *)
+  assert_type_error "+ expects int and int, found int and bool" "if true then 1 else 1 + true"
+
 let suite =
   "llang parser suite"
   >::: [
@@ -382,6 +420,10 @@ let suite =
          "if in let in if" >:: test_if_in_let_in_if;
          "operands evaluate left to right" >:: test_operands_evaluate_left_to_right;
          "unbound identifier fails" >:: test_unbound_identifier_fails;
+         "types the warm-up programs" >:: test_types_warmup_programs;
+         "let shadowing can change the type" >:: test_let_shadowing_changes_type;
+         "type errors have clear messages" >:: test_type_errors_have_messages;
+         "type checker checks the unused branch" >:: test_type_checker_checks_unused_branch;
        ]
 
 let () = run_test_tt_main suite

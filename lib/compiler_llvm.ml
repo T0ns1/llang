@@ -64,6 +64,12 @@ let rec compile_program env l0 b0 = function
 
   | BinOp (op, e1, e2, t) -> compile_binop env l0 b0 e1 e2 t op
 
+  | If (cond, e1, e2, t) -> failwith "If expressions are not implemented yet in LLVM compilation"
+
+  | Let (x, e1, e2, t) -> failwith "Let expressions are not implemented yet in LLVM compilation"
+
+  | Id (x, t) -> failwith "Variable references are not implemented yet in LLVM compilation"
+
   | UnOp (op, e, t) ->
     let r1, l1, b1, bs1 = compile_program env l0 b0 e in
     let r2 = 

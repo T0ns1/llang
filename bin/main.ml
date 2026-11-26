@@ -12,22 +12,6 @@ let read_file file =
 let read_stdin () =
   In_channel.input_all stdin
 
-(* ---------- Pipelines ---------- *)
-
-let interpret src =
-  let ast = parse_string src in
-  let _typed = type_synth ast in (* Reject non well-typed expressions *)
-  print_endline (string_of_value (eval ast))
-
-let compile src =
-  let ast = parse_string src in
-  let typed = type_synth ast in
-  print_string (Llang.Llvm_utils.string_of_program typed)
-
-let parse src =
-  let ast = parse_string src in
-  print_endline (unparse_ast ast)
-
 (* ---------- Errors ---------- *)
 
 (* Exception -> Message mapping *)
@@ -36,6 +20,27 @@ let message_of_exception = function
   | Division_by_zero -> "Runtime error: division by zero"
   | Sys_error msg -> "Error: " ^ msg
   | e -> "Unexpected error: " ^ Printexc.to_string e
+
+let stage prefix f =
+  try f () with
+  | Failure msg -> failwith (prefix ^ ": " ^ msg)
+
+(* ---------- Pipelines ---------- *)
+
+let interpret src =
+  let ast = parse_string src in
+  let _typed = stage "Type error" (fun () -> type_synth ast) in (* Reject non well-typed expressions *)
+  let v = stage "Runtime error" (fun () -> eval ast) in
+  print_endline (string_of_value v)
+
+let compile src =
+  let ast = parse_string src in
+  let typed = stage "Type error" (fun () -> type_synth ast) in
+  print_string (Llang.Llvm_utils.string_of_program typed)
+
+let parse src =
+  let ast = parse_string src in
+  print_endline (unparse_ast ast)
 
 (* ---------- REPL ---------- *)
 
