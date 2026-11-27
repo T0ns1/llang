@@ -335,6 +335,51 @@ let test_type_checker_checks_unused_branch _ =
   (* never evaluated, still rejected: the check is static *)
   assert_type_error "+ expects int and int, found int and bool" "if true then 1 else 1 + true"
 
+(* ---------- Module 5: LLVM ---------- *)
+
+let ir_of s = Llang.Llvm_utils.string_of_program (Llang.Typing.type_synth (parse_string s))
+
+let assert_ir_contains s needle =
+  assert_bool (Printf.sprintf "IR for %S should contain %S" s needle) (contains_substring (ir_of s) needle)
+
+let assert_ir_lacks s needle =
+  assert_bool (Printf.sprintf "IR for %S should not contain %S" s needle) (not (contains_substring (ir_of s) needle))
+
+let test_ir_if_uses_phi _ =
+  assert_ir_contains "if 1 < 2 then 10 else 20" "br i1";
+  assert_ir_contains "if 1 < 2 then 10 else 20" "phi i32"
+
+let test_ir_bool_if_uses_i1_phi _ =
+  assert_ir_contains "if true then false else true" "phi i1"
+
+let test_ir_and_short_circuits _ =
+  (* the right operand must sit behind a conditional branch *)
+  assert_ir_contains "false && 1 / 0 == 0" "br i1";
+  assert_ir_contains "false && 1 / 0 == 0" "phi i1"
+
+let test_ir_or_short_circuits _ =
+  assert_ir_contains "true || 1 / 0 == 0" "br i1";
+  assert_ir_contains "true || 1 / 0 == 0" "phi i1"
+
+let test_ir_comparison_uses_operand_type _ =
+  (* the bug in L0: comparing ints as i1 *)
+  assert_ir_contains "5 == 7" "icmp eq i32";
+  assert_ir_contains "true == false" "icmp eq i1"
+
+let test_ir_let_emits_no_instruction _ =
+  (* x is just the constant 1: no add, no alloca *)
+  assert_ir_lacks "let x = 1 in x" "= add";
+  assert_ir_lacks "let x = 1 in x" "alloca"
+
+let test_ir_mod_uses_srem _ =
+  assert_ir_contains "7 % 3" "srem i32"
+
+let test_ir_bool_prints_text _ =
+  assert_ir_contains "true" "select i1"
+
+let test_ir_has_no_target_triple _ =
+  assert_ir_lacks "1" "target triple"
+
 let suite =
   "llang parser suite"
   >::: [
@@ -424,6 +469,15 @@ let suite =
          "let shadowing can change the type" >:: test_let_shadowing_changes_type;
          "type errors have clear messages" >:: test_type_errors_have_messages;
          "type checker checks the unused branch" >:: test_type_checker_checks_unused_branch;
+         "IR: if uses br i1 and phi" >:: test_ir_if_uses_phi;
+         "IR: bool if uses an i1 phi" >:: test_ir_bool_if_uses_i1_phi;
+         "IR: && short-circuits" >:: test_ir_and_short_circuits;
+         "IR: || short-circuits" >:: test_ir_or_short_circuits;
+         "IR: comparison uses the operand type" >:: test_ir_comparison_uses_operand_type;
+         "IR: let emits no instruction" >:: test_ir_let_emits_no_instruction;
+         "IR: % uses srem" >:: test_ir_mod_uses_srem;
+         "IR: bools print as text" >:: test_ir_bool_prints_text;
+         "IR: no target triple" >:: test_ir_has_no_target_triple;
        ]
 
 let () = run_test_tt_main suite
