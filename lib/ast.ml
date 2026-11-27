@@ -5,6 +5,7 @@ open Symbols
 type l_type = 
   | TInt
   | TBool
+  | TArrow of l_type * l_type
 
 type bin_op =   
   | Add
@@ -33,6 +34,8 @@ type ast =
   | UnOp of un_op * ast
   | Let of symbol * ast * ast
   | If of ast * ast * ast
+  | Fun of symbol * l_type * ast
+  | App of ast * ast
 
 
 

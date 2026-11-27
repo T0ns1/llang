@@ -11,6 +11,8 @@ type ast_typed =
   | If of ast_typed * ast_typed * ast_typed * l_type
   | BinOp of Ast.bin_op * ast_typed * ast_typed * l_type
   | UnOp of Ast.un_op * ast_typed * l_type
+  | Fun of symbol * l_type * ast_typed * l_type
+  | App of ast_typed * ast_typed * l_type
 
 let type_of = function
   | Num _ -> TInt
@@ -20,6 +22,8 @@ let type_of = function
   | If (_, _, _, t) -> t
   | BinOp (_, _, _, t) -> t
   | UnOp (_, _, t) -> t
+  | Fun (_, _, _, t) -> t
+  | App (_, _, t) -> t
 
 
 

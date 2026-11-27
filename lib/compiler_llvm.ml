@@ -41,6 +41,7 @@ type llvm =
 let llvm_type_of = function
   | Ast.TInt -> I32
   | Ast.TBool -> I1
+  | Ast.TArrow _ -> failwith "Function types are not compiled to LLVM yet (closures: Module 8)"
 
 let count = ref 0
 let new_reg = fun () -> count := !count + 1; !count
@@ -107,6 +108,11 @@ let rec compile_program env l0 b0 = function
       | Ast.Not -> build_op Eq ret r1 (IConst(0, I1)) I1
     in
     (Register ret, l1, b1@[instr], bs1)
+
+  | Fun (x, t1, e, t2) -> failwith "Function definitions are not implemented for LLVM compilation"
+
+  | App (e1, e2, t) -> failwith "Function applications are not compiled to LLVM yet (closures: Module 8)"
+
 
 
 

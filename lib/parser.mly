@@ -24,16 +24,17 @@ main:
   cond EOF                  { $1 }
 
 cond:
-  | disj                         { $1 }
-  | LET ID ASSIGN cond IN cond { Let ((new_symbol $2), $4, $6) }
-  | IF cond THEN cond ELSE cond  { If ($2, $4, $6) } 
+  | disj                                       { $1 }
+  | LET ID ASSIGN cond IN cond                 { Let ((new_symbol $2), $4, $6) }
+  | IF cond THEN cond ELSE cond                { If ($2, $4, $6) }
+  | FUN LPAREN ID COLON arrow RPAREN ARROW cond { Fun ((new_symbol $3), $5, $8) } 
 
 disj:
-  | disj OR conj                 { BinOp (Or, $1, $3) }
-  | conj                         { $1 }
+  | disj OR conj            { BinOp (Or, $1, $3) }
+  | conj                    { $1 }
 
 conj:
-  | conj AND comp          { BinOp (And, $1, $3) }
+  | conj AND comp           { BinOp (And, $1, $3) }
   | comp                    { $1 }
 
 comp:
@@ -51,14 +52,18 @@ expr:
   | term                    { $1 }
 
 term:
-  | term TIMES call         { BinOp (Mul, $1, $3) }
-  | term DIV   call         { BinOp (Div, $1, $3) }
-  | term MOD   call         { BinOp (Mod, $1, $3) }
+  | term TIMES unary        { BinOp (Mul, $1, $3) }
+  | term DIV   unary        { BinOp (Div, $1, $3) }
+  | term MOD   unary        { BinOp (Mod, $1, $3) }
+  | unary                   { $1 }
+
+unary:
+  | MINUS unary             { UnOp (Neg, $2) }
   | call                    { $1 }
 
-call: 
-  | MINUS call            { UnOp (Neg, $2) }
-  | NOT call               { UnOp (Not, $2) }
+call:
+  | call factor             { App ($1, $2) }
+  | NOT factor              { UnOp (Not, $2) }
   | factor                  { $1 }
 
 factor:
@@ -67,4 +72,13 @@ factor:
   | TRUE                    { Bool true }
   | FALSE                   { Bool false }
   | LPAREN cond RPAREN      { $2 }
+
+arrow:
+  | base ARROW arrow        { TArrow ($1, $3) }
+  | base                    { $1 }
+
+base:
+  | TINT                    { TInt }
+  | TBOOL                   { TBool }
+  | LPAREN arrow RPAREN     { $2 }
 

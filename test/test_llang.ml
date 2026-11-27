@@ -189,7 +189,10 @@ let test_not_binds_tighter_than_equality _ =
 
 let test_parses_repeated_prefix_operators _ =
   assert_equal (UnOp (Neg, UnOp (Neg, Num 3))) (parse_string "- -3");
-  assert_equal (UnOp (Not, UnOp (Not, Bool true))) (parse_string "not not true")
+  assert_equal (UnOp (Not, UnOp (Not, Bool true))) (parse_string "not (not true)");
+  (* not behaves like a function (spec 3.1): not not true would be (not not) true,
+     so not only takes an atom and the unparenthesised form is a parse error *)
+  assert_raises (Failure "Parse error at line 1, column 7") (fun () -> parse_string "not not true")
 
 let test_not_needs_no_space _ =
   assert_equal (UnOp (Not, Bool true)) (parse_string "not(true)")
@@ -234,7 +237,7 @@ let test_unparse_round_trips _ =
       let tree = parse_string s in
       assert_equal ~msg:s tree (parse_string (unparse_ast tree)))
     [ "(1 + 2) * 3"; "-(3 - 5)"; "1 - (2 - 3)"; "(let x = 1 in x) + 1";
-      "(if true then 1 else 2) * 3"; "not (1 < 2)"; "- -3"; "not not true";
+      "(if true then 1 else 2) * 3"; "not (1 < 2)"; "- -3"; "not (not true)";
       "let x = 1 in let y = x in x + y"; "if a then b else c + 1";
       "not true == false"; "1 + 2 * 3 % 4"; "true || false && true" ]
 
@@ -380,6 +383,110 @@ let test_ir_bool_prints_text _ =
 let test_ir_has_no_target_triple _ =
   assert_ir_lacks "1" "target triple"
 
+(* ---------- Module 6: functions ---------- *)
+
+let test_string_of_function_types _ =
+  let check expected t = assert_equal ~printer:(fun s -> s) expected (string_of_btype t) in
+  (* -> is right-associative: only an arrow on the left needs parentheses *)
+  check "int -> int -> int" (TArrow (TInt, TArrow (TInt, TInt)));
+  check "(int -> int) -> int" (TArrow (TArrow (TInt, TInt), TInt));
+  check "(int -> bool) -> (bool -> int) -> int"
+    (TArrow (TArrow (TInt, TBool), TArrow (TArrow (TBool, TInt), TInt)));
+  check "((int -> int) -> int) -> int" (TArrow (TArrow (TArrow (TInt, TInt), TInt), TInt))
+
+let test_eval_applies_a_function _ =
+  assert_equal (Int 42) (eval_s "(fun (x : int) -> x + 1) 41")
+
+let test_eval_scoping_is_static _ =
+  (* f sees the x where it was written (1), not the later x = 100 *)
+  assert_equal (Int 2)
+    (eval_s "let x = 1 in let f = fun (y : int) -> y + x in let x = 100 in f 1");
+  (* the spec's example: dynamic scoping would give 6 *)
+  assert_equal (Int 5)
+    (eval_s "let x = 1 in let f = fun (y : int) -> y + x in let g = fun (x : int) -> x + f x in g 2")
+
+let test_eval_currying _ =
+  assert_equal (Int 7) (eval_s "let add = fun (x : int) -> fun (y : int) -> x + y in add 3 4");
+  (* partial application keeps x = 5 in the returned closure *)
+  assert_equal (Int 15)
+    (eval_s "let add = fun (x : int) -> fun (y : int) -> x + y in let add5 = add 5 in add5 10")
+
+let test_eval_higher_order _ =
+  assert_equal (Int 12)
+    (eval_s "let twice = fun (f : int -> int) -> fun (x : int) -> f (f x) in \
+               twice (twice (fun (x : int) -> x + 3)) 0");
+  (* a closure chosen by an if, then applied *)
+  assert_equal (Int 11)
+    (eval_s "let f = if true then fun (x : int) -> x + 1 else fun (x : int) -> x * 2 in f 10")
+
+let test_eval_function_errors _ =
+  assert_raises Division_by_zero
+    (fun () -> eval_s "let f = fun (d : int) -> 100 / d in f 5 + f 0");
+  (* eval on its own fails cleanly on a non-function (the typer normally rejects it) *)
+  assert_raises (Failure "Expected a closure") (fun () -> eval_s "3 4")
+
+let test_functions_print_as_fun _ =
+  assert_equal ~printer:(fun s -> s) "<fun>" (string_of_value (eval_s "fun (x : int) -> x"));
+  assert_equal ~printer:(fun s -> s) "<fun>"
+    (string_of_value (eval_s "let k = fun (x : int) -> fun (y : int) -> x in k 1"))
+
+let test_parses_application_and_fun _ =
+  let f = new_symbol "f" and g = new_symbol "g" and x = new_symbol "x" in
+  (* application is left-associative *)
+  assert_equal (App (App (Id f, Id g), Id x)) (parse_string "f g x");
+  assert_equal (App (Id f, App (Id g, Id x))) (parse_string "f (g x)");
+  (* not behaves like a function: not f x is (not f) x *)
+  assert_equal (App (UnOp (Not, Id f), Id x)) (parse_string "not f x");
+  (* unary minus is looser than application: - f x is -(f x) *)
+  assert_equal (UnOp (Neg, App (Id f, Id x))) (parse_string "- f x");
+  (* application binds tighter than * and + *)
+  assert_equal (BinOp (Add, App (App (Id f, Num 3), Num 4), Num 1)) (parse_string "f 3 4 + 1");
+  (* f -1 is a subtraction, not f applied to -1 *)
+  assert_equal (BinOp (Sub, Id f, Num 1)) (parse_string "f -1");
+  (* the body of fun extends as far right as possible *)
+  assert_equal (Fun (x, TInt, BinOp (Add, Id x, Num 1))) (parse_string "fun (x : int) -> x + 1")
+
+let test_parses_function_types _ =
+  let param_type s = match parse_string s with
+    | Fun (_, t, _) -> t
+    | _ -> assert_failure ("not a fun: " ^ s) in
+  (* -> is right-associative *)
+  assert_equal (TArrow (TInt, TArrow (TInt, TInt))) (param_type "fun (f : int -> int -> int) -> f");
+  assert_equal (TArrow (TArrow (TInt, TInt), TInt)) (param_type "fun (f : (int -> int) -> int) -> f");
+  assert_equal (TArrow (TInt, TBool)) (param_type "fun (f : (int -> bool)) -> f")
+
+let test_types_of_functions _ =
+  List.iter
+    (fun (s, t) -> assert_equal ~msg:s ~printer:string_of_btype t (type_s s))
+    [ ("fun (x : int) -> x > 0", TArrow (TInt, TBool));
+      ("(fun (x : int) -> x > 0) 1", TBool);
+      ("fun (f : int -> int) -> f (f 1)", TArrow (TArrow (TInt, TInt), TInt));
+      ("fun (x : int) -> fun (y : int) -> x + y", TArrow (TInt, TArrow (TInt, TInt)));
+      ("let add = fun (x : int) -> fun (y : int) -> x + y in add 3", TArrow (TInt, TInt));
+      (* both branches have the same function type *)
+      ("if true then fun (x : int) -> x else fun (y : int) -> y * 2", TArrow (TInt, TInt));
+      (* the parameter shadows an outer x of another type *)
+      ("let x = true in fun (x : int) -> x + 1", TArrow (TInt, TInt)) ]
+
+let test_function_type_errors _ =
+  assert_type_error "attempting to apply a non-function type: int" "3 4";
+  assert_type_error "function argument type mismatch: expected int, found bool"
+    "(fun (x : int) -> x) true";
+  assert_type_error "function argument type mismatch: expected int -> int, found bool -> int"
+    "(fun (f : int -> int) -> f 1) (fun (b : bool) -> 1)";
+  (* functions can't be compared *)
+  assert_type_error "== expects two ints or two bools, found int -> int and int -> int"
+    "let f = fun (x : int) -> x in f == f";
+  assert_type_error "if branches have different types: int -> int and int -> bool"
+    "if true then fun (x : int) -> x else fun (x : int) -> x > 0";
+  (* the parameter is only in scope inside the body *)
+  assert_type_error "Unbound identifier: x" "(fun (x : int) -> x) x"
+
+let test_lexer_identifiers_with_underscores _ =
+  assert_equal (Id (new_symbol "apply_pos")) (parse_string "apply_pos");
+  assert_equal (Id (new_symbol "_x")) (parse_string "_x");
+  assert_equal (Int 2) (eval_s "let _x = 1 in _x + 1")
+
 let suite =
   "llang parser suite"
   >::: [
@@ -478,6 +585,18 @@ let suite =
          "IR: % uses srem" >:: test_ir_mod_uses_srem;
          "IR: bools print as text" >:: test_ir_bool_prints_text;
          "IR: no target triple" >:: test_ir_has_no_target_triple;
+         "function types print with minimal parentheses" >:: test_string_of_function_types;
+         "eval: applying a function" >:: test_eval_applies_a_function;
+         "eval: scoping is static" >:: test_eval_scoping_is_static;
+         "eval: currying and partial application" >:: test_eval_currying;
+         "eval: higher-order functions" >:: test_eval_higher_order;
+         "eval: errors inside and around functions" >:: test_eval_function_errors;
+         "eval: functions print as <fun>" >:: test_functions_print_as_fun;
+         "parse: application, not, minus and fun" >:: test_parses_application_and_fun;
+         "parse: function types" >:: test_parses_function_types;
+         "types of functions" >:: test_types_of_functions;
+         "function type errors have clear messages" >:: test_function_type_errors;
+         "identifiers can contain underscores" >:: test_lexer_identifiers_with_underscores;
        ]
 
 let () = run_test_tt_main suite

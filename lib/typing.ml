@@ -61,4 +61,18 @@ let rec type_synth env = function
       if type_of et2 <> type_of et3 then failwith ("if branches have different types: " ^ Parser_utils.string_of_btype (type_of et2) ^ " and " ^ Parser_utils.string_of_btype (type_of et3));
       Ast_typed.If (et1, et2, et3, type_of et2)
 
+  | Ast.Fun(s, t, e) -> 
+    let new_env = add_binding s t (begin_scope env) in
+      let et = type_synth new_env e in
+      Ast_typed.Fun (s, t, et, TArrow(t, type_of et))
+
+  | Ast.App (e1, e2) -> 
+    let et1 = type_synth env e1 in
+    let et2 = type_synth env e2 in
+    match type_of et1 with
+    | TArrow(t_arg, t_ret) ->
+      if t_arg <> type_of et2 then failwith ("function argument type mismatch: expected " ^ Parser_utils.string_of_btype t_arg ^ ", found " ^ Parser_utils.string_of_btype (type_of et2));
+      Ast_typed.App (et1, et2, t_ret)
+    | _ -> failwith ("attempting to apply a non-function type: " ^ Parser_utils.string_of_btype (type_of et1))
+
 let type_synth ast = type_synth empty ast (* overrides the previous definition *)

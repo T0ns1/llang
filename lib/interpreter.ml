@@ -22,7 +22,7 @@ let bool_from_value = function
 let string_of_value = function
   | Int n -> string_of_int n
   | Bool b -> string_of_bool b
-  | Closure (id,e,_) -> "fun "^string_of_symbol id^" -> "^unparse_ast e
+  | Closure (id,e,_) -> "<fun>"
 
 
 let native_eval_un_op op v =
@@ -60,7 +60,19 @@ let rec eval env = function
   | If (e1, e2, e3) -> 
     let v1 = eval env e1 in
     if bool_from_value v1 then eval env e2 else eval env e3
+
+  | Fun (id, _, e) -> Closure (id, e, env)
+
   
+  | App (e1, e2) -> 
+    let v1 = eval env e1 in
+    let v2 = eval env e2 in
+    match v1 with
+    | Closure (id, e, closure_env) ->
+      let new_env = add_binding id v2 (begin_scope closure_env) in
+      eval new_env e
+    | _ -> failwith "Expected a closure"
+
 and native_eval_bin_op op v1 v2 =
   match op with
   | Add -> value_from_int (int_from_value v1 + int_from_value v2)

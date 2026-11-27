@@ -43,6 +43,12 @@ let unparse_un_op = function
 let rec string_of_btype = function
   | TInt -> "int"
   | TBool -> "bool"
+  | TArrow (t1, t2) ->
+    let left = match t1 with
+      | TArrow _ -> "(" ^ string_of_btype t1 ^ ")"
+      | _ -> string_of_btype t1
+    in
+    left ^ " -> " ^ string_of_btype t2
 
 
 let rec unparse_ast = function
@@ -59,3 +65,7 @@ let rec unparse_ast = function
   | Let (sym, e1, e2) -> ("(let " ^ string_of_symbol sym ^ " = " ^ unparse_ast e1 ^ " in " ^ unparse_ast e2 ^ ")")
 
   | If (e1, e2, e3) -> ("(if " ^ unparse_ast e1 ^ " then " ^ unparse_ast e2 ^ " else " ^ unparse_ast e3 ^ ")")
+
+  | Fun (sym, t, e) -> ("(fun (" ^ string_of_symbol sym ^ " : " ^ string_of_btype t ^ ") -> " ^ unparse_ast e ^ ")")
+
+  | App (e1, e2) -> ("(" ^ unparse_ast e1 ^ " " ^ unparse_ast e2 ^ ")")
